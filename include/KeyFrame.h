@@ -40,6 +40,8 @@
 #include "ORBextractor.h"
 #include "Frame.h"
 #include "KeyFrameDatabase.h"
+#include <pcl/point_types.h>
+#include <pcl/point_cloud.h>
 
 #include <mutex>
 
@@ -387,6 +389,9 @@ public:
     const int mnMaxY;
     const cv::Mat mK;
 
+public:
+    cv::Mat imLeftRgb, imRightRgb, imDepth;
+    pcl::PointCloud<pcl::PointXYZRGBA>::Ptr mptrPointCloud;
 
     // The following variables need to be accessed trough a mutex to be thread safe. ---- 但是大哥..protected也不是这样设计使用的啊
 protected:

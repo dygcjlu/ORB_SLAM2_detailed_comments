@@ -142,6 +142,12 @@ public:
     ///为了避免地图点id冲突设计的互斥量
     std::mutex mMutexPointCreation;
 
+    void Save(const string &filename,const cv::MatSize image_size);
+    void SaveMapPoint(ofstream &f, MapPoint* mp);
+    void SaveKeyFrame(ofstream &f, KeyFrame* kf);
+    void SaveKeyFrameImg(string filename, KeyFrame *kf);
+    int GeneratePointCloud();
+
 protected:
     // 存储所有的地图点
     std::set<MapPoint*> mspMapPoints; 
@@ -161,6 +167,11 @@ protected:
 
     ///类的成员函数在对类成员变量进行操作的时候,防止冲突的互斥量
     std::mutex mMutexMap;
+
+
+    std::vector<int> KeyId;
+
+
 };
 
 } //namespace ORB_SLAM

@@ -155,6 +155,9 @@ public:
     std::vector<MapPoint*> GetTrackedMapPoints();
     std::vector<cv::KeyPoint> GetTrackedKeyPointsUn();
 
+    //到处地图点和关键帧
+    void SaveMap(const string &filename,const cv::MatSize image_size);
+
 private:
 
     //注意变量命名方式，类的变量有前缀m，如果这个变量是指针类型还要多加个前缀p，

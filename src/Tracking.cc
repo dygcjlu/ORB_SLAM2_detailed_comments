@@ -246,6 +246,11 @@ cv::Mat Tracking::GrabImageStereo(
     mImGray = imRectLeft;
     cv::Mat imGrayRight = imRectRight;
 
+#ifdef STEREO_MATCH 
+    mimLeft = imRectLeft;
+    mimRight = imRectRight;
+#endif
+
     // step 1 ：将RGB或RGBA图像转为灰度图像
     if(mImGray.channels()==3)
     {
@@ -780,6 +785,12 @@ void Tracking::StereoInitialization()
         // KeyFrame里有一个mpKeyFrameDB，Tracking里有一个mpKeyFrameDB，而KeyFrame里的mpMap都指向Tracking里的这个mpKeyFrameDB
         // 提问: 为什么要指向Tracking中的相应的变量呢? -- 因为Tracking是主线程，是它创建和加载的这些模块
         KeyFrame* pKFini = new KeyFrame(mCurrentFrame,mpMap,mpKeyFrameDB);
+
+#ifdef STEREO_MATCH
+        pKFini->imLeftRgb = mimLeft.clone();
+        pKFini->imRightRgb = mimRight.clone();
+        //pKFini->imDepth = mImDepth.clone();
+#endif
 
         // Insert KeyFrame in the map
         // KeyFrame中包含了地图、反过来地图中也包含了KeyFrame，相互包含
@@ -1710,6 +1721,16 @@ void Tracking::CreateNewKeyFrame()
             }
         }
     }
+
+#ifdef STEREO_MATCH
+    if(mSensor ==System::STEREO)
+    {
+        
+        pKF->imLeftRgb = mimLeft.clone();
+        pKF->imRightRgb = mimRight.clone();
+        //pKF->imDepth = mImDepth.clone();
+    }
+#endif
 
     // Step 4：插入关键帧
     // 关键帧插入到列表 mlNewKeyFrames中，等待local mapping线程临幸

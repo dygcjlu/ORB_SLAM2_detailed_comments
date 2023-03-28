@@ -1,0 +1,172 @@
+%YAML:1.0
+
+#--------------------------------------------------------------------------------------------
+# Camera Parameters. Adjust them!
+#--------------------------------------------------------------------------------------------
+
+# Camera calibration and distortion parameters (OpenCV) 
+
+
+Camera.fx: 817.6158
+Camera.fy: 817.6158
+Camera.cx: 638.7058
+Camera.cy: 471.5457
+
+#Camera.k1: 0.15269
+#Camera.k2: -0.15797
+#Camera.p1: 0.002668
+#Camera.p2: -3.24e-04
+
+Camera.k1: 0.0
+Camera.k2: 0.0
+Camera.p1: 0.0
+Camera.p2: 0.0
+
+Camera.width: 1280
+Camera.height: 960
+
+# Camera frames per second 
+Camera.fps: 30
+
+# Color order of the images (0: BGR, 1: RGB. It is ignored if images are grayscale)
+Camera.RGB: 1
+
+# stereo baseline times fx
+#Camera.bf: 4915.698
+Camera.bf: 49.15789
+#Camera.bf: 45834
+
+
+# Close/Far threshold. Baseline times.
+#ThDepth: 35
+ThDepth: 10
+
+#--------------------------------------------------------------------------------------------
+# Stereo Rectification. Only if you need to pre-rectify the images.
+# Camera.fx, .fy, etc must be the same as in LEFT.P
+#--------------------------------------------------------------------------------------------
+# 相机拍摄的图像尺寸
+LEFT.height: 960
+LEFT.width: 1280
+# 畸变系数
+LEFT.D: !!opencv-matrix
+   rows: 1
+   cols: 14
+   dt: d
+   data: [1.7632935695171864e-01, -2.8423764109953159e-01, 0., 0., 0.,
+       0., 0., -1.6664031096324300e-01, 0., 0., 0., 0., 0., 0.]
+# 相机内参
+LEFT.K: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: d
+   data: [ 7.6594706455495202e+02, 0., 6.4520779677122812e+02, 0.,
+       7.6298320081699262e+02, 4.6897230171012228e+02, 0., 0., 1.]
+# 在立体校正过程中，相机为实现共面过程中所需要进行的旋转
+LEFT.R:  !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: d
+   data: [9.9998718042032286e-01, -1.2196199242142168e-03,
+       4.9144198287160087e-03, 1.2214630868394691e-03,
+       9.9999918479634353e-01, -3.7206797226211030e-04,
+       -4.9139620409508512e-03, 3.7806598492106904e-04,
+       9.9998785494783438e-01]
+# 在立体校正过程后，相机在新坐标系下的投影矩阵
+LEFT.P:  !!opencv-matrix
+   rows: 3
+   cols: 4
+   dt: d
+   data: [ 8.1761585515092304e+02, 0., 6.3870583343505859e+02, 0., 0.,
+       8.1761585515092304e+02, 4.7154574584960938e+02, 0., 0., 0., 1.,
+       0. ]
+
+RIGHT.height: 960
+RIGHT.width: 1280
+RIGHT.D: !!opencv-matrix
+   rows: 1
+   cols: 14
+   dt: d
+   data: [ 1.6318196410461108e-01, -2.3827430567600355e-01, 0., 0., 0.,
+       0., 0., -1.1491434898975585e-01, 0., 0., 0., 0., 0., 0.]
+RIGHT.K: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: d
+   data: [ 7.6594706455495202e+02, 0., 6.4951187852703367e+02, 0.,
+       7.6298320081699262e+02, 4.7218822974484380e+02, 0., 0., 1.]
+RIGHT.R:  !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: d
+   data: [ 9.9996588463611880e-01, 3.8765163664107954e-03,
+       7.2939827779645479e-03, -3.8792518579226628e-03,
+       9.9999241054081056e-01, 3.6092354013444284e-04,
+       -7.2925282945695610e-03, -3.8920642333964688e-04,
+       9.9997333341916306e-01 ]
+
+RIGHT.P:  !!opencv-matrix
+   rows: 3
+   cols: 4
+   dt: d
+   data: [  8.1761585515092304e+02, 0., 6.3870583343505859e+02,
+       -4.9157889304018582e+01, 0., 8.1761585515092304e+02,
+       4.7154574584960938e+02, 0., 0., 0., 1., 0. ]
+#--------------------------------------------------------------------------------------------
+# ORB Parameters
+#--------------------------------------------------------------------------------------------
+
+# ORB Extractor: Number of features per image
+ORBextractor.nFeatures: 1200
+
+# ORB Extractor: Scale factor between levels in the scale pyramid 	
+ORBextractor.scaleFactor: 1.2
+
+# ORB Extractor: Number of levels in the scale pyramid	
+ORBextractor.nLevels: 8
+
+# ORB Extractor: Fast threshold
+# Image is divided in a grid. At each cell FAST are extracted imposing a minimum response.
+# Firstly we impose iniThFAST. If no corners are detected we impose a lower value minThFAST
+# You can lower these values if your images have low contrast			
+ORBextractor.iniThFAST: 20
+ORBextractor.minThFAST: 7
+
+#--------------------------------------------------------------------------------------------
+# Viewer Parameters
+#--------------------------------------------------------------------------------------------
+Viewer.KeyFrameSize: 0.05
+Viewer.KeyFrameLineWidth: 1
+Viewer.GraphLineWidth: 0.9
+Viewer.PointSize:2
+Viewer.CameraSize: 0.08
+Viewer.CameraLineWidth: 3
+Viewer.ViewpointX: 0
+Viewer.ViewpointY: -0.7
+Viewer.ViewpointZ: -1.8
+Viewer.ViewpointF: 500
+
+Custom.R:  !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: d
+   data: [  9.9998416233805942e-01, -5.1015840688890587e-03,
+       -2.3767442095733158e-03, 5.0998330333037085e-03,
+       9.9998672032103408e-01, -7.4221601597988763e-04,
+       2.3804991245760256e-03, 7.3008326238184517e-04,
+       9.9999690009636921e-01 ]
+
+Custom.T:  !!opencv-matrix
+   rows: 3
+   cols: 1
+   dt: d
+   data: [ -6.0121402924193101e-02, -2.3306955365994496e-04,
+       -4.3853943844910807e-04]
+
+Custom.Q:  !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [  1., 0., 0., -6.3870583343505859e+02, 0., 1., 0.,
+       -4.7154574584960938e+02, 0., 0., 0., 8.1761585515092304e+02, 0.,
+       0., 1.6632444287718513e+01, 0.]

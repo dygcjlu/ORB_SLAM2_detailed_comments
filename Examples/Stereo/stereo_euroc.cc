@@ -46,11 +46,12 @@ void LoadImages(const string &strPathLeft, const string &strPathRight, const str
 int main(int argc, char **argv)
 {
     // step 0 参数检查
-    if(argc != 6)
+    if(argc != 7)
     {
         cerr << endl << "Usage: ./stereo_euroc path_to_vocabulary path_to_settings path_to_left_folder path_to_right_folder path_to_times_file" << endl;
         return 1;
     }
+    std::string strSavePath = argv[6];
 
     // step 1 获取图像的访问路径
     // Retrieve paths to images
@@ -243,7 +244,17 @@ int main(int argc, char **argv)
 
     // Save camera trajectory
     // step 7 以TUM格式保存轨迹文件（普通帧+ 关键帧）
-    SLAM.SaveTrajectoryTUM("CameraTrajectory.txt");
+    //SLAM.SaveTrajectoryTUM("CameraTrajectory.txt");
+    SLAM.SaveTrajectoryTUM(strSavePath + "/CameraTrajectory2.txt");
+
+    SLAM.SaveKeyFrameTrajectoryTUM(strSavePath + "/KeyFrameTrajectory.txt");   
+
+    SLAM.SaveMap(strSavePath + "/sfm.txt",imLeft.size); 
+    cout << "Fall in sleep" << endl;
+
+    sleep(60*2);
+    cout << "Wake up"  << endl;
+
 
     return 0;
 }

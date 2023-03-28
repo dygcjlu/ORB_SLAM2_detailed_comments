@@ -56,11 +56,13 @@ void LoadImages(const string &strAssociationFilename, vector<string> &vstrImageF
 
 int main(int argc, char **argv)
 {
-    if(argc != 5)
+    if(argc != 6)
     {
-        cerr << endl << "Usage: ./rgbd_tum path_to_vocabulary path_to_settings path_to_sequence path_to_association" << endl;
+        cerr << endl << "Usage: ./rgbd_tum path_to_vocabulary path_to_settings path_to_sequence path_to_association save_path" << endl;
         return 1;
     }
+
+    std::string strSavePath = argv[5];
 
     // Retrieve paths to images
     //按顺序存放需要读取的彩色图像、深度图像的路径，以及对应的时间戳的变量
@@ -170,9 +172,11 @@ int main(int argc, char **argv)
     // Save camera trajectory
     //保存最终的相机轨迹
     //SLAM.SaveTrajectoryTUM("CameraTrajectory.txt");
-    SLAM.SaveTrajectoryTUM("./CameraTrajectory2.txt");
+    SLAM.SaveTrajectoryTUM(strSavePath + "/CameraTrajectory2.txt");
 
-    SLAM.SaveKeyFrameTrajectoryTUM("KeyFrameTrajectory.txt");   
+    SLAM.SaveKeyFrameTrajectoryTUM(strSavePath + "/KeyFrameTrajectory.txt");   
+
+    SLAM.SaveMap(strSavePath + "/sfm.txt",imD.size); 
 
     return 0;
 }

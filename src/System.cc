@@ -144,6 +144,8 @@ System::System(const string &strVocFile,					//词典文件路径
         mpTracker->SetViewer(mpViewer);
     }
 
+   
+
     //Set pointers between threads
     //设置进程间的指针
     mpTracker->SetLocalMapper(mpLocalMapper);
@@ -410,10 +412,10 @@ void System::Shutdown()
         usleep(5000);
     }
 
-    if(mpViewer)
+    //if(mpViewer)
     	//如果使用了可视化的窗口查看器执行这个
     	// TODO 但是不明白这个是做什么的。如果我注释掉了呢？
-        pangolin::BindToContext("ORB-SLAM2: Map Viewer");
+        //pangolin::BindToContext("ORB-SLAM2: Map Viewer");
 }
 
 //按照TUM格式保存相机运行轨迹并保存到指定的文件中
@@ -632,5 +634,14 @@ vector<cv::KeyPoint> System::GetTrackedKeyPointsUn()
     unique_lock<mutex> lock(mMutexState);
     return mTrackedKeyPointsUn;
 }
+
+
+
+// sfm 保存sfm的路径
+void System::SaveMap(const string &filename,const cv::MatSize image_size)
+{
+    mpMap->Save(filename,image_size);
+}
+
 
 } //namespace ORB_SLAM
