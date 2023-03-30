@@ -252,7 +252,7 @@ int main(int argc, char **argv)
     SLAM.SaveMap(strSavePath + "/sfm.txt",imLeft.size); 
     cout << "Fall in sleep" << endl;
 
-    sleep(60*2);
+    sleep(5);
     cout << "Wake up"  << endl;
 
 

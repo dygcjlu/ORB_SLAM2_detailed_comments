@@ -21,16 +21,17 @@ public:
     int SetQ(cv::Mat& Q);
     
 private:
-    void SavePCLCloud(cv::Mat& img, cv::Mat& xyz);
+    void SavePCLCloud( cv::Mat& img, cv::Mat& xyz);
+
+    void FilterDepth(cv::Mat& xyz);
 private:
 
     cv::Ptr<cv::StereoSGBM> m_pSGBM;
     cv::Mat m_Q;
 
-    
-
-
-
+    float m_fMaxDepth;
+    float m_fMinDepth;
+    std::string m_strSavePath;
 };
 
 }

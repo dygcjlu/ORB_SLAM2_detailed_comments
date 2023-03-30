@@ -13,6 +13,10 @@ namespace ORB_SLAM2
 {
 int StereoMatch::Init()
 {
+    m_fMaxDepth = 1.0;
+    m_fMinDepth = 0.001;
+    m_strSavePath = "/media/xxd/Data2/datasets/3d/za/";
+
     int SADWindowSize = 7;
     m_pSGBM = cv::StereoSGBM::create(0,16,3);
 
@@ -66,7 +70,7 @@ void ShowRectiedImg(cv::Mat& Left, cv::Mat& Right)
 
 int StereoMatch::ComputeDepthMap(cv::Mat& Left, cv::Mat& Right,  cv::Mat& xyz)
 {
-    static bool showRectiedImg=true;
+    static bool showRectiedImg=false;
     if(showRectiedImg)
     {
         showRectiedImg = false;
@@ -82,25 +86,46 @@ int StereoMatch::ComputeDepthMap(cv::Mat& Left, cv::Mat& Right,  cv::Mat& xyz)
 
     disp.convertTo(disp8, CV_8U, 255/(256*16.));
 
+    /*
     std::string strSavePath = "/media/xxd/Data2/datasets/3d/za/";
     static int i = 0;
     i++;
     std::string strSaveName = strSavePath + std::to_string(i) + ".jpg";
-
     imwrite(strSaveName, disp8);
+    */
 
     //Mat xyz;
     Mat floatDisp;
     disp.convertTo(floatDisp, CV_32F, 1.0f / disparity_multiplier);
     reprojectImageTo3D(floatDisp, xyz, m_Q, true);
+    FilterDepth(xyz);
 
-    SavePCLCloud(Left, xyz);
+    //SavePCLCloud(Left, xyz);
 
     return 0;
 }
 
+void StereoMatch::FilterDepth(cv::Mat& xyz)
+{
+     for (int m = 0; m < xyz.rows; m++)
+    {
+        for (int n = 0; n < xyz.cols; n++)
+        {
 
-void StereoMatch::SavePCLCloud(cv::Mat& img, cv::Mat& xyz)
+            float z = xyz.at<cv::Vec3f>(m,n)[2];
+            if(z > m_fMaxDepth || z < m_fMinDepth)
+            {
+                xyz.at<cv::Vec3f>(m,n)[0] = 0;
+                xyz.at<cv::Vec3f>(m,n)[1] = 0;
+                xyz.at<cv::Vec3f>(m,n)[2] = 0;
+            }
+        }
+    }
+
+}
+
+
+void StereoMatch::SavePCLCloud( cv::Mat& img, cv::Mat& xyz)
 {
    
     double min, max;
@@ -121,6 +146,7 @@ void StereoMatch::SavePCLCloud(cv::Mat& img, cv::Mat& xyz)
             p.x = xyzPixel.val[0];
             p.y = xyzPixel.val[1];
             p.z = xyzPixel.val[2];
+            /*
             if(p.z > 0.8 )
             {
                 //std::cout<<p.z<<std::endl;
@@ -132,7 +158,7 @@ void StereoMatch::SavePCLCloud(cv::Mat& img, cv::Mat& xyz)
             {
                 //std::cout<<"p.z < 1 "<<std::endl;
                 continue;
-            }   
+            }   */
             p.b = bgrPixel.val[0];
             p.g = bgrPixel.val[1];
             p.r = bgrPixel.val[2];
@@ -146,16 +172,16 @@ void StereoMatch::SavePCLCloud(cv::Mat& img, cv::Mat& xyz)
     pPointCloud->width = pPointCloud->points.size();
     pPointCloud->is_dense = true;
 
-    std::string strSavePath = "/media/xxd/Data2/datasets/3d/za/";
+    //std::string strSavePath = "/media/xxd/Data2/datasets/3d/za/";
     //strFilePath = strSavePath + "pclPointCloud.ply";
 
     static int i = 0;
     i++;
-    std::string strSaveName = strSavePath + std::to_string(i) + ".ply";
+    std::string strSaveName = m_strSavePath + std::to_string(i) + ".ply";
 
     pcl::PLYWriter writer;
 	writer.write(strSaveName, *pPointCloud);
-    std::cout<<"save pcl cloud"<<std::endl;
+    //std::cout<<"save pcl cloud"<<std::endl;
 
    
      return;

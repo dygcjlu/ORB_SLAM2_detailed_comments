@@ -65,9 +65,26 @@ public:
 public:
     int SetRectifiedQ(cv::Mat Q);
 
+    int SetRectifiedP(cv::Mat P);
+
+
     void SaveCameraPosition( std::list<KeyFrame *>& lNewKeyFrames);
 
+    //thread, generate depth map from stereo match
     void GenerateDepthMapThread();
+
+    void ProjectFromNeighbor(KeyFrame* kf);
+
+    void SavePCLCloud(cv::Mat& img, cv::Mat& xyz, std::string strFileName);
+
+    bool IsDepthSimilar(float d1, float d2, float fThreshold);
+
+    void FilterDepthMap(KeyFrame* kf);
+
+    bool IsThreadBusy();
+
+    void FusePCLCloud();
+
 
 protected:
     void generatePointCloud(KeyFrame *kf);
@@ -82,6 +99,7 @@ protected:
 
     condition_variable keyFrameUpdated;
     std::mutex mMutexGlobalMap;
+   
     // vector<PointCloude>     pointcloud;
     // data to generate point clouds
     vector<KeyFrame *> keyframes;
@@ -104,6 +122,20 @@ protected:
     pcl::PointCloud<pcl::PointXYZRGBA>::Ptr globalCameraMap;
 
     shared_ptr<thread> m_depthMapThread;
+
+    std::map<int, KeyFrame *> m_mapKeyFrame;
+    std::map<int, std::map<int, cv::Mat>> m_mapNeighborDepth;
+    cv::Mat m_K; //Intrinsics after rectified
+    float m_fMaxDepth; //max depth of point 
+    float m_fMinDepth; //min depth of point
+
+    std::string m_strSavePath; //save depth map to this directory
+    float m_fFloatZero;
+    bool m_bIsBusy;
+
+    bool m_bFirstReceived;
+    pcl::PointCloud<pcl::PointXYZRGBA>::Ptr m_newGlobalMap;
+    std::mutex m_MutexNewGlobalMap;
 };
 }
 #endif // POINTCLOUDMAPPING_H

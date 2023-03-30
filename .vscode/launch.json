@@ -142,9 +142,39 @@
             ]
         }
     ]
-}*/
+}
+*/
 
+{
+    //../Vocabulary/ORBvoc.txt ./Stereo/EuRoC.yaml "$pathDatasetEuroc"/MH02 ./Stereo/EuRoC_TimeStamps/MH02.txt dataset-MH02_stereo
+    //1672800011439376640
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "C++ Launch",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "/media/xxd/Data2/3d/stereo/mygithub/ORB_SLAM2_detailed_comments/Examples/Stereo/stereo_euroc",
+            "args": ["/media/xxd/Data2/3d/stereo/mygithub/ORB_SLAM2_detailed_comments/Vocabulary/ORBvoc.txt", 
+                      "/media/xxd/Data2/3d/stereo/mygithub/ORB_SLAM2_detailed_comments/Examples/Stereo/custom.yaml", 
+                      "/media/xxd/Data2/datasets/3d/mine/0105/stereo/2/for_slam/simple/mav0/cam0/data", 
+                      "/media/xxd/Data2/datasets/3d/mine/0105/stereo/2/for_slam/simple/mav0/cam1/data", 
+                      "/media/xxd/Data2/datasets/3d/mine/0105/stereo/2/for_slam/simple/custom_data.txt",
+                      "/media/xxd/Data2/datasets/3d/mine/0105/stereo/2/for_slam/simple"],
+            "environment": [{"name":"LD_LIBRARY_PATH", "value":"/media/xxd/Data2/3d/vtk/build/install/lib"}],
+            "cwd": "${workspaceFolder}",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        }
+    ]
+}
 
+/*
 {
     //../Vocabulary/ORBvoc.txt ./Stereo/EuRoC.yaml "$pathDatasetEuroc"/MH02 ./Stereo/EuRoC_TimeStamps/MH02.txt dataset-MH02_stereo
     //1672800011439376640
@@ -172,7 +202,7 @@
             ]
         }
     ]
-}
+}*/
 
 /*
 {

@@ -185,7 +185,7 @@ void Map::clear()
 
 int Map::GeneratePointCloud()
 {
-    double dResolution = 0.0001; //m
+    double dResolution = 0.001; //m
     double dMeank =  50;
     double dThresh = 1.0;  
     //PointCloudMapping mpPointCloudMapping(dResolution, dMeank, dThresh);
@@ -213,15 +213,32 @@ int Map::GeneratePointCloud()
         return -1;
     }
     m_pPointCloudMapping->SetRectifiedQ(Q);
+
+    cv::Mat P1;
+    fsSettings["LEFT.P"] >> P1;
+    if(P1.empty())
+    {
+        cerr << "ERROR: There is LEFT.P!" << endl;
+        return -1;
+    }
+
+    m_pPointCloudMapping->SetRectifiedP(P1);
+
     //////
 
     for(auto kf:mspKeyFrames)
     {
         m_pPointCloudMapping->insertKeyFrame(kf);
     }
-    std::cout<<"GeneratePointCloud quit"<<std::endl;
-    sleep(60*3);
+    sleep(5); //5s
 
+    while(m_pPointCloudMapping->IsThreadBusy())
+    {
+        usleep(100*1000*1000); //100ms
+    }
+    
+    std::cout<<"GeneratePointCloud quit"<<std::endl;
+   
     return 0;
 }
 
