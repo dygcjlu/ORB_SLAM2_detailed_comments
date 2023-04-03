@@ -142,8 +142,8 @@
             ]
         }
     ]
-}
-*/
+}*/
+
 
 {
     //../Vocabulary/ORBvoc.txt ./Stereo/EuRoC.yaml "$pathDatasetEuroc"/MH02 ./Stereo/EuRoC_TimeStamps/MH02.txt dataset-MH02_stereo

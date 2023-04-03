@@ -36,6 +36,10 @@ PointCloudMapping::PointCloudMapping(double resolution_, double meank_, double t
     : mabIsUpdating(false),m_fMaxDepth(1.0),m_fMinDepth(0.001), m_fFloatZero(0.000001)
     ,m_bIsBusy(false), m_bFirstReceived(false)
 {
+    m_fDepthDiffStrict = 0.01;
+    m_nMinViewNum = 4;
+    m_fGoodViewRatio = 0.75;
+
     m_stereoMatch.Init();
     shutDownFlag = false;
     this->resolution = resolution_;
@@ -56,6 +60,8 @@ PointCloudMapping::PointCloudMapping(double resolution_, double meank_, double t
     m_depthMapThread = make_shared<thread>(bind(&PointCloudMapping::GenerateDepthMapThread, this));
 
     m_strSavePath = "/media/xxd/Data2/datasets/3d/za/";
+
+    
 
 
    
@@ -455,6 +461,12 @@ int PointCloudMapping::SetRectifiedP(cv::Mat P)
 
 bool PointCloudMapping::IsDepthSimilar(float d1, float d2, float fThreshold)
 {
+    //depth should be positive and greater than zero
+    if(d1 <= m_fFloatZero || d2 <= m_fFloatZero)
+    {
+        return false;
+    }
+
     float fDiff = fabs(d1-d2)/d1;
 
     return fDiff < fThreshold;
@@ -472,9 +484,10 @@ void PointCloudMapping::FilterDepthMap(KeyFrame* kf)
     }
     std::map<int, cv::Mat>& tmpNeighborDepthMap = m_mapNeighborDepth[kf->mnId];
 
-    float fDepthDiffStrict = 0.02;
-    int nMinViews = 2; //not include current depth map
-    float fGoodViewRatio = 0.75;
+    //float fDepthDiffStrict = 0.02;
+    //int nMinViews = 2; //not include current depth map
+    //float fGoodViewRatio = 0.75;
+    bool bAdjust = true;
 
      
             
@@ -492,6 +505,8 @@ void PointCloudMapping::FilterDepthMap(KeyFrame* kf)
             {
                 int nGoodViews =0;
 		        int nViews = 0;
+                std::vector<float> tmpVec;
+                tmpVec.push_back(depth);
             
                 for(auto& it : tmpNeighborDepthMap)
                 {
@@ -499,20 +514,32 @@ void PointCloudMapping::FilterDepthMap(KeyFrame* kf)
                     if(z > 0)
                     {
                         ++nViews;
-			    		if (IsDepthSimilar(depth, z, fDepthDiffStrict)) 
+			    		if (IsDepthSimilar(depth, z, m_fDepthDiffStrict)) 
                         {
 				    		// agrees with this neighbor
 				    		++nGoodViews;
+                            tmpVec.push_back(z);
 				    	}
                     }
+
                 }
 
-                if ((nGoodViews < nMinViews) || ((nGoodViews * 1.0) <= nViews * fGoodViewRatio)) 
+                if ((nGoodViews < m_nMinViewNum) || ((nGoodViews * 1.0) <= nViews * m_fGoodViewRatio)) 
                 {
                     newDepthMap.at<cv::Vec3f>(i,j)[0] = 0.;
                     newDepthMap.at<cv::Vec3f>(i,j)[1] = 0.;
 			    	newDepthMap.at<cv::Vec3f>(i,j)[2] = 0.;
-			    }
+			    }else
+                {
+                    if(bAdjust)
+                    {
+                        float fMean = std::accumulate(tmpVec.begin(), tmpVec.end(), 0.0) / tmpVec.size();
+                        newDepthMap.at<cv::Vec3f>(i,j)[2] = fMean;
+                    }
+
+                }
+
+               
             }
 
             {
@@ -521,6 +548,8 @@ void PointCloudMapping::FilterDepthMap(KeyFrame* kf)
                 int nGoodViews =0;
 		        int nViews = 0;
             }
+
+            
         }
     }
  
@@ -528,6 +557,23 @@ void PointCloudMapping::FilterDepthMap(KeyFrame* kf)
 
     std::string strSaveName = m_strSavePath + std::to_string(kf->mnId) + "_" + "filtered.ply";
     SavePCLCloud(kf->imLeftRgb, kf->imDepth, strSaveName);
+
+ 
+    {
+        //free map memory
+        std::map<int, std::map<int, cv::Mat>>::iterator it;
+        for(it = m_mapNeighborDepth.begin(); it != m_mapNeighborDepth.end(); it++)
+        {
+            std::map<int, cv::Mat>::iterator iter;
+            for(iter = it->second.begin(); iter != it->second.end(); iter++)
+            {
+                iter->second.release();
+            }
+
+        }
+
+        m_mapNeighborDepth.clear();
+    }
 
 }
 
@@ -730,6 +776,7 @@ void PointCloudMapping::GenerateDepthMapThread()
         }
 
         FusePCLCloud();
+        //FusePCLCloud2();
 
     }
 }
@@ -849,6 +896,228 @@ void PointCloudMapping::FusePCLCloud()
     pcl::PLYWriter writer;
 	writer.write(strSaveName, *m_newGlobalMap);
     std::cout<<"save global pcl cloud"<<std::endl;
+  
+}
+
+
+void PointCloudMapping::FusePCLCloud2()
+{ 
+    int n = m_mapKeyFrame.size();
+    if(0 == n)
+    {
+        std::cout<<"m_mapKeyFrame.size() == 0"<<std::endl;
+        return ;
+    }
+    int w = 0;
+    int h = 0;
+    int nTopNum = 20;
+    
+
+    std::vector<std::pair<KeyFrame*, int>> vecMap;
+    //std::vector<PAIR> vecMap;
+    for (auto& it : m_mapKeyFrame) 
+    {
+        if(0 == w || 0 == h)
+        {
+            w = it.second->imDepth.cols;
+            h = it.second->imDepth.rows;
+        }
+        
+        vecMap.push_back(std::pair<KeyFrame*, int>(it.second, it.second->GetConnectionsKFNum()));
+        std::cout<<"id:"<< it.second->mnId<<" kf num:"<< it.second->GetConnectionsKFNum()<<std::endl;
+    }
+
+    std::sort(vecMap.begin(), vecMap.end(),[](std::pair<KeyFrame*, int> a, std::pair<KeyFrame*, int> b) {
+        return a.second > b.second;
+    });
+
+    std::cout<<"afer sort"<<std::endl;
+
+    std::map<int, int> mapKFId2VecIndex;
+
+    for(int i = 0; i <  vecMap.size(); i++)
+    {
+        std::cout<<"id:"<< vecMap[i].first->mnId<<" kf num:"<< vecMap[i].second<<std::endl;
+        mapKFId2VecIndex[vecMap[i].first->mnId] = i;
+    }
+    
+
+    //int *arrIsDepthUsed = new int[n * h * w]; //hundreds m Byte
+    //memset(arrIsDepthUsed, 0, n * h * w);
+    std::vector<int> arrIsDepthUsed(n * h * w, 0);
+    //const int USED = 1;
+    //
+    std::map<int, CustomPoint3d> mapPointCloud;
+    int nPointCount = 1;
+
+    std::chrono::steady_clock::time_point time_start = std::chrono::steady_clock::now();
+
+            
+
+    for(int i = 0; i <  vecMap.size(); i++)
+    {
+        KeyFrame* kf = vecMap[i].first;
+        int nNeighborNum = vecMap[i].second;
+        int nKfId = kf->mnId;
+        std::cout<<"fuse kf id:"<<nKfId<<std::endl;
+
+        cv::Mat Twc = kf->GetPoseInverse();  //camera coord to world coord
+        float Twc00 = Twc.at<float>(0, 0); float Twc01 = Twc.at<float>(0, 1); float Twc02 = Twc.at<float>(0, 2); float Twc03 = Twc.at<float>(0, 3); 
+        float Twc10 = Twc.at<float>(1, 0); float Twc11 = Twc.at<float>(1, 1); float Twc12 = Twc.at<float>(1, 2); float Twc13 = Twc.at<float>(1, 3); 
+        float Twc20 = Twc.at<float>(2, 0); float Twc21 = Twc.at<float>(2, 1); float Twc22 = Twc.at<float>(2, 2); float Twc23 = Twc.at<float>(2, 3); 
+
+        for (int m=0; m < h; ++m) 
+        {
+			for (int n=0; n < w; ++n) 
+            {
+                float curKFZ = kf->imDepth.at<cv::Vec3f>(m, n)[2];
+                if(curKFZ <= m_fMinDepth)
+                {
+                    continue;
+                }
+
+                int nIdexInMap = mapKFId2VecIndex[nKfId];
+                int nIdexInUsedArr = nIdexInMap * h * w + m * w + n;
+                int nPointIndex = arrIsDepthUsed[nIdexInUsedArr];
+                
+                if(nPointIndex != 0)
+                {
+                    //warn: will ignore some depth 
+                    continue;
+                }
+                arrIsDepthUsed[nIdexInUsedArr] = nPointCount;
+
+                float curKFX = kf->imDepth.at<cv::Vec3f>(m, n)[0];
+                float curKFY = kf->imDepth.at<cv::Vec3f>(m, n)[1];
+
+                float curKFWPosX = Twc00 * curKFX + Twc01 * curKFY + Twc02 * curKFZ + Twc03;
+                float curKFWPosY = Twc10 * curKFX + Twc11 * curKFY + Twc12 * curKFZ + Twc13;
+                float curKFWPosZ = Twc20 * curKFX + Twc21 * curKFY + Twc22 * curKFZ + Twc23;
+
+                //std::vector<KeyFrame*> vecNeighborKF = kf->GetBestCovisibilityKeyFrames(nNeighborNum);
+                std::vector<KeyFrame*> vecNeighborKF = kf->GetBestCovisibilityKeyFrames(nTopNum);
+                int nGoodView = 0;
+                int nView = 0;
+                for(auto& neighborKF : vecNeighborKF)
+                {
+                    
+                    cv::Mat neighborKFTcw = neighborKF->GetPose();  //world coord to camera coord
+                    float hfc00 = neighborKFTcw.at<float>(0, 0); float hfc01 = neighborKFTcw.at<float>(0, 1); float hfc02 = neighborKFTcw.at<float>(0, 2); float hfc03 = neighborKFTcw.at<float>(0, 3);
+                    float hfc10 = neighborKFTcw.at<float>(1, 0); float hfc11 = neighborKFTcw.at<float>(1, 1); float hfc12 = neighborKFTcw.at<float>(1, 2); float hfc13 = neighborKFTcw.at<float>(1, 3);
+                    float hfc20 = neighborKFTcw.at<float>(2, 0); float hfc21 = neighborKFTcw.at<float>(2, 1); float hfc22 = neighborKFTcw.at<float>(2, 2); float hfc23 = neighborKFTcw.at<float>(2, 3);
+
+                    float curKFInNeighborX = hfc00 * curKFWPosX + hfc01 * curKFWPosY + hfc02 * curKFWPosZ + hfc03;
+                    float curKFInNeighborY = hfc10 * curKFWPosX + hfc11 * curKFWPosY + hfc12 * curKFWPosZ + hfc13;
+                    float curKFInNeighborZ = hfc20 * curKFWPosX + hfc21 * curKFWPosY + hfc22 * curKFWPosZ + hfc23;
+
+                    if(curKFInNeighborZ < m_fMinDepth)
+                    {
+                        continue;
+                    }
+
+                    //camera coord to pixel coord
+                    float fx = m_K.at<float>(0,0);            /* 0 */                float cx = m_K.at<float>(0,2);
+                             /* 0 */                 float fy = m_K.at<float>(1,1);  float cy = m_K.at<float>(1,2);
+                              /* 0 */                          /* 0 */               float k31 = 1.0;
+                    
+                    int u2 = (int)((fx * curKFInNeighborX + cx * curKFInNeighborZ) / curKFInNeighborZ);
+                    int v2 = (int)((fy * curKFInNeighborY + cy * curKFInNeighborZ) / curKFInNeighborZ);
+                    //if (u2 > 0 && u2< w && v2 > 0 && v2 < h)
+                    if(u2<=0 || u2 >=  w || v2 <= 0 || v2 >= h )
+                    {
+                        continue;
+                    }
+
+                    int nNeighborIdexInMap = mapKFId2VecIndex[neighborKF->mnId];
+                    int nNeighborIdexInUsedArr = nNeighborIdexInMap * h * w + v2 * w + u2;
+                    nPointIndex = arrIsDepthUsed[nNeighborIdexInUsedArr];
+                    /*
+                    if(nPointIndex != 0)
+                    {
+                        continue;
+                    }*/
+                    
+
+                    float neighborDepth =  neighborKF->imDepth.at<cv::Vec3f>(v2,u2)[2];
+                    if(neighborDepth > 0)
+                    {
+                        nView++;
+                        if(IsDepthSimilar(curKFInNeighborZ, neighborDepth, m_fDepthDiffStrict))
+                        {
+                            nGoodView++;
+                        }
+                    }
+
+                    if(curKFInNeighborZ < neighborDepth)
+                    {
+                        //this neighbor deth is blocked by the projection from current depth map
+                        neighborKF->imDepth.at<cv::Vec3f>(v2,u2)[0] = 0.;
+                        neighborKF->imDepth.at<cv::Vec3f>(v2,u2)[1] = 0.;
+                        neighborKF->imDepth.at<cv::Vec3f>(v2,u2)[2] = 0.;
+                    }
+
+                    arrIsDepthUsed[nNeighborIdexInUsedArr] = nPointCount;
+                }
+
+
+
+                if(nGoodView >= m_nMinViewNum)
+                {
+                    CustomPoint3d tmpPoint3d;
+                    tmpPoint3d.nPointIndex = nPointCount;
+                    tmpPoint3d.nPointViewNum = nGoodView;
+                    tmpPoint3d.point3d[0] = curKFWPosX;
+                    tmpPoint3d.point3d[1] = curKFWPosY;
+                    tmpPoint3d.point3d[2] = curKFWPosZ;
+                    tmpPoint3d.rgbcolor[0] =  kf->imLeftRgb.at<cv::Vec3b>(m, n)[2];
+                    tmpPoint3d.rgbcolor[1] =  kf->imLeftRgb.at<cv::Vec3b>(m, n)[1];
+                    tmpPoint3d.rgbcolor[2] =  kf->imLeftRgb.at<cv::Vec3b>(m, n)[0];
+
+                    mapPointCloud[nPointCount] = tmpPoint3d;
+                    nPointCount++;
+                }
+            }
+        }
+    }
+    std::chrono::steady_clock::time_point time_end = std::chrono::steady_clock::now();
+    auto time_d = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(time_end - time_start).count();
+    cout<<"fuse point cloud time elapse:"<< time_d<<endl;
+
+    pcl::PointCloud<pcl::PointXYZRGBA>::Ptr pPointCloud(new pcl::PointCloud<pcl::PointXYZRGBA>);
+    //for(auto& it : mapPointCloud)
+    std::map<int, CustomPoint3d>::iterator it;
+    for (it = mapPointCloud.begin(); it != mapPointCloud.end(); it++)
+    { 
+        float z = it->second.point3d[2];
+        if(z > m_fMaxDepth || z <  m_fMinDepth)
+        {
+            //std::cout<<p.z<<std::endl;
+            continue;
+        }
+        pcl::PointXYZRGBA p;
+        p.x = it->second.point3d[0];
+        p.y = it->second.point3d[1];
+        p.z = z;
+
+        p.b = it->second.rgbcolor[2];
+        p.g = it->second.rgbcolor[1];
+        p.r = it->second.rgbcolor[0];
+
+        pPointCloud->points.push_back(p);
+    }
+    pPointCloud->height = 1;
+    pPointCloud->width = pPointCloud->points.size();
+    pPointCloud->is_dense = true;
+
+
+    voxel->setInputCloud(pPointCloud);
+    voxel->filter(*pPointCloud);
+
+    std::string strSaveName = m_strSavePath + "_global2.ply";
+    pcl::PLYWriter writer;
+	writer.write(strSaveName, *pPointCloud);
+    std::cout<<"save global2 pcl cloud"<<std::endl;
+
   
 }
 

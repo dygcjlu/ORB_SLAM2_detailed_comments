@@ -36,6 +36,24 @@
 namespace ORB_SLAM2
 {
 
+struct CustomPoint3d
+{
+    float point3d[3];
+    int rgbcolor[3];
+    int nPointIndex;
+    int nPointViewNum;
+
+    CustomPoint3d()
+    {
+        nPointIndex = 0;
+        nPointViewNum = 0;
+        point3d[0] = 0.;
+        point3d[1] = 0.;
+        point3d[2] = 0.;
+    }
+
+};
+
 class PointCloudMapping
 {
 public:
@@ -84,6 +102,8 @@ public:
     bool IsThreadBusy();
 
     void FusePCLCloud();
+
+    void FusePCLCloud2();
 
 
 protected:
@@ -136,6 +156,13 @@ protected:
     bool m_bFirstReceived;
     pcl::PointCloud<pcl::PointXYZRGBA>::Ptr m_newGlobalMap;
     std::mutex m_MutexNewGlobalMap;
+
+    //some threshold param
+    float m_fDepthDiffStrict;// = 0.02;
+    int m_nMinViewNum;
+    //int nMinViews = 2; //not include current depth map
+    float m_fGoodViewRatio;// = 0.75;
+
 };
 }
 #endif // POINTCLOUDMAPPING_H

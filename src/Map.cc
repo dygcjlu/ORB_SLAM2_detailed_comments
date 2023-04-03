@@ -185,7 +185,7 @@ void Map::clear()
 
 int Map::GeneratePointCloud()
 {
-    double dResolution = 0.001; //m
+    double dResolution = 0.0005; //m
     double dMeank =  50;
     double dThresh = 1.0;  
     //PointCloudMapping mpPointCloudMapping(dResolution, dMeank, dThresh);
@@ -247,6 +247,7 @@ void Map::Save(const string &filename,const cv::MatSize image_size)
 {
 #ifdef STEREO_MATCH
     GeneratePointCloud();
+    return;
 #endif
     std::cout << "SFM Saving to "<< filename << std::endl;
     ofstream f;

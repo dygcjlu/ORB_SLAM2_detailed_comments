@@ -898,4 +898,18 @@ float KeyFrame::ComputeSceneMedianDepth(const int q)
     return vDepths[(vDepths.size()-1)/q];
 }
 
+///////////////////////////////////////////////
+int KeyFrame::GetConnectionsKFNum()
+{
+    int nNum = 0;
+    {
+        unique_lock<mutex> lock(mMutexConnections);
+        nNum = mvpOrderedConnectedKeyFrames.size();
+
+    }
+
+    
+    return nNum;
+}
+
 } //namespace ORB_SLAM
