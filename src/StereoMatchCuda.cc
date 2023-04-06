@@ -1,46 +1,49 @@
-
 #include <iostream>
 #include <pcl/io/ply_io.h> 
 #include <pcl/common/transforms.h>
 #include <pcl/point_types.h>
 
-#include "StereoMatch.h"
+#include "StereoMatchCuda.h"
 
 
 using namespace cv;
 
 namespace ORB_SLAM2
 {
-int StereoMatch::Init()
+    StereoMatchCuda::StereoMatchCuda()
+    {
+        m_pSGMCuda = nullptr;
+        m_nImgW = 0;
+        m_nImgH = 0;
+
+        m_fMaxDepth = 1.0;
+        m_fMinDepth = 0.001;
+
+    }
+
+int StereoMatchCuda::Init()
 {
+
+    m_pSGMCuda = nullptr;
+    m_nImgW = 0;
+    m_nImgH = 0;
+
     m_fMaxDepth = 1.0;
-    m_fMinDepth = 0.001;
+    m_fMinDepth = 0.01;
     m_strSavePath = "/media/xxd/Data2/datasets/3d/za/";
 
-    int SADWindowSize = 7;
-    m_pSGBM = cv::StereoSGBM::create(0,16,3);
+    
 
-    m_pSGBM->setPreFilterCap(63);
-    int sgbmWinSize = SADWindowSize > 0 ? SADWindowSize : 3;
-    m_pSGBM->setBlockSize(sgbmWinSize);
+    //pSGMCuda = new sgm::StereoSGM(width, height, disp_size, src_depth, dst_depth, sgm::EXECUTE_INOUT_CUDA2CUDA, param);
 
-    int cn = 3;// img1.channels();
 
-    m_pSGBM->setP1(8*cn*sgbmWinSize*sgbmWinSize);
-    m_pSGBM->setP2(32*cn*sgbmWinSize*sgbmWinSize);
-    m_pSGBM->setMinDisparity(0);
-    m_pSGBM->setNumDisparities(256);
-    m_pSGBM->setUniquenessRatio(10);
-    m_pSGBM->setSpeckleWindowSize(300);
-    m_pSGBM->setSpeckleRange(32);
-    m_pSGBM->setDisp12MaxDiff(1);
-    m_pSGBM->setMode(cv::StereoSGBM::MODE_SGBM);
+    
     
 
     return 0;
 }
 
-void StereoMatch::ShowRectiedImg(cv::Mat& Left, cv::Mat& Right)
+void StereoMatchCuda::ShowRectiedImg(cv::Mat& Left, cv::Mat& Right)
 {
     Mat canvas;
     double sf;
@@ -68,8 +71,37 @@ void StereoMatch::ShowRectiedImg(cv::Mat& Left, cv::Mat& Right)
 }
 
 
-int StereoMatch::ComputeDepthMap(cv::Mat& Left, cv::Mat& Right,  cv::Mat& xyz)
+int StereoMatchCuda::ComputeDepthMap(cv::Mat& Left, cv::Mat& Right,  cv::Mat& xyz)
 {
+    if(nullptr == m_pSGMCuda)
+    {
+        m_nImgW =  Left.cols;
+        m_nImgH = Left.rows;
+        int disp_size = 128;
+        m_nSrcC = 8;
+        m_nDstC = 16;
+        m_bUseSubPixel = true;
+        const sgm::StereoSGM::Parameters param(10, 120, 0.85, m_bUseSubPixel, sgm::PathType::SCAN_8PATH, 90, 1,  sgm::CensusType::CENSUS_9x7);
+        //m_pSGMCuda = new sgm::StereoSGM(m_nImgW, m_nImgH, disp_size, m_nSrcC, m_nDstC, sgm::EXECUTE_INOUT_CUDA2CUDA, param);
+        m_pSGMCuda = new sgm::StereoSGM(m_nImgW, m_nImgH, disp_size, m_nSrcC, m_nDstC, sgm::EXECUTE_INOUT_HOST2HOST, param);
+    }
+    cv::Mat leftGray;
+    cv::Mat rightGray;
+
+    if(3 == Left.channels())
+    {
+        cv::cvtColor(Left, leftGray, cv::COLOR_RGB2GRAY);
+    }else{
+        leftGray = Left.clone();
+    }
+
+    if(3 == Right.channels())
+    {
+        cv::cvtColor(Right, rightGray, cv::COLOR_RGB2GRAY);
+    }else{
+        rightGray = Right.clone();
+    }
+
     static bool showRectiedImg=false;
     if(showRectiedImg)
     {
@@ -77,41 +109,60 @@ int StereoMatch::ComputeDepthMap(cv::Mat& Left, cv::Mat& Right,  cv::Mat& xyz)
         ShowRectiedImg(Left, Right);
     }
 
-    Mat disp, disp8;
-    float disparity_multiplier = 1.0f;
+   
 
-    m_pSGBM->compute(Left, Right, disp);
-    if (disp.type() == CV_16S)
-        disparity_multiplier = 16.0f;
-
-    disp.convertTo(disp8, CV_8U, 255/(256*16.));
+    cv::Mat disparity_32f;
 
     /*
-    std::string strSavePath = "/media/xxd/Data2/datasets/3d/za/";
-    static int i = 0;
-    i++;
-    std::string strSaveName = strSavePath + std::to_string(i) + ".jpg";
-    imwrite(strSaveName, disp8);
+    const int src_bytes = m_nSrcC * m_nImgW * m_nImgH / 8;
+	const int dst_bytes = m_nDstC * m_nImgW * m_nImgH / 8;
+
+    device_buffer d_I1(src_bytes), d_I2(src_bytes), d_disparity(dst_bytes);
+    d_I1.upload(leftGray.data);
+	d_I2.upload(rightGray.data);
+    cv::Mat disparity(leftGray.size(), CV_16S), disparity_32f;
+	m_pSGMCuda.execute(d_I1.data, d_I2.data, d_disparity.data);
+    d_disparity.download(disparity.data);
+    */
+    cv::Mat disparity(leftGray.size(), CV_16S);
+    std::cout<<"img size:"<<leftGray.size()<<std::endl;
+
+	m_pSGMCuda->execute(leftGray.data, rightGray.data, disparity.data);
+
+
+    const int disp_scale = m_bUseSubPixel ? sgm::StereoSGM::SUBPIXEL_SCALE : 1;
+    disparity.convertTo(disparity_32f, CV_32F, 1. / disp_scale);
+    /*
+
+    double min, max;
+    cv::minMaxLoc(disparity_32f, &min, &max);
+    cv::Scalar tempVal = cv::mean( disparity_32f );
+    std::cout<<"min:"<<min<<" max:"<<max<<std::endl;
+    std::cout<<"mean:"<<tempVal<<std::endl;
     */
 
-    //Mat xyz;
-    Mat floatDisp;
-    disp.convertTo(floatDisp, CV_32F, 1.0f / disparity_multiplier);
-    reprojectImageTo3D(floatDisp, xyz, m_Q, false);
+    reprojectImageTo3D(disparity_32f, xyz, m_Q, true);
     FilterDepth(xyz);
 
-    //SavePCLCloud(Left, xyz);
 
     return 0;
 }
 
-void StereoMatch::FilterDepth(cv::Mat& xyz)
+void StereoMatchCuda::FilterDepth(cv::Mat& xyz)
 {
-   
+     
+     int nBorderLen = 20;
      for (int m = 0; m < xyz.rows; m++)
     {
         for (int n = 0; n < xyz.cols; n++)
         {
+            if((m<nBorderLen) || (m>(xyz.rows-nBorderLen)) || (n < nBorderLen) || (n > (xyz.cols - nBorderLen)))
+            {
+                xyz.at<cv::Vec3f>(m,n)[0] = 0;
+                xyz.at<cv::Vec3f>(m,n)[1] = 0;
+                xyz.at<cv::Vec3f>(m,n)[2] = 0;
+                continue;
+            }
 
             float z = xyz.at<cv::Vec3f>(m,n)[2];
             if(z > m_fMaxDepth || z < m_fMinDepth)
@@ -126,7 +177,7 @@ void StereoMatch::FilterDepth(cv::Mat& xyz)
 }
 
 
-void StereoMatch::SavePCLCloud( cv::Mat& img, cv::Mat& xyz)
+void StereoMatchCuda::SavePCLCloud( cv::Mat& img, cv::Mat& xyz)
 {
    
     double min, max;
@@ -189,7 +240,7 @@ void StereoMatch::SavePCLCloud( cv::Mat& img, cv::Mat& xyz)
   
 }
 
-int StereoMatch::SetQ(cv::Mat& Q)
+int StereoMatchCuda::SetQ(cv::Mat& Q)
 {
     m_Q = Q;
     std::cout<<"set Q: "<<m_Q<<std::endl;

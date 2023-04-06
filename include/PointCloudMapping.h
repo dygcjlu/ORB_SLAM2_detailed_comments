@@ -31,6 +31,7 @@
 #include <pcl/filters/statistical_outlier_removal.h>
 
 #include "StereoMatch.h"
+#include "StereoMatchCuda.h"
 // using namespace ORB_SLAM2;
 
 namespace ORB_SLAM2
@@ -139,6 +140,7 @@ protected:
     pcl::StatisticalOutlierRemoval<pcl::PointXYZRGBA> *statistical_filter;
 
     StereoMatch m_stereoMatch;
+    StereoMatchCuda m_stereoMatchCuda;
     pcl::PointCloud<pcl::PointXYZRGBA>::Ptr globalCameraMap;
 
     shared_ptr<thread> m_depthMapThread;
@@ -162,6 +164,8 @@ protected:
     int m_nMinViewNum;
     //int nMinViews = 2; //not include current depth map
     float m_fGoodViewRatio;// = 0.75;
+    bool m_bUseCuda;
+    bool m_bIsSaveData;
 
 };
 }

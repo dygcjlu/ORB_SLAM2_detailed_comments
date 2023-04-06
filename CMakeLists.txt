@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 2.8)
-project(ORB_SLAM2)
+#project(ORB_SLAM2)
+project(ORB_SLAM2 LANGUAGES CXX CUDA)
 
 IF(NOT CMAKE_BUILD_TYPE)
   SET(CMAKE_BUILD_TYPE Release)
@@ -7,6 +8,11 @@ ENDIF()
 
 MESSAGE("Build type: " ${CMAKE_BUILD_TYPE})
 add_definitions(-DSTEREO_MATCH)
+set(CUDA_ARCHS "86" CACHE STRING "List of architectures to generate device code for")
+find_package(CUDA REQUIRED)
+# dependent packages
+find_package(CUDAToolkit REQUIRED)
+
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug" )
    MESSAGE("set -g flag")
@@ -65,6 +71,7 @@ ${PROJECT_SOURCE_DIR}/include
 ${EIGEN3_INCLUDE_DIR}
 ${Pangolin_INCLUDE_DIRS}
 ${PCL_INCLUDE_DIRS}
+${PROJECT_SOURCE_DIR}/Thirdparty/libSGM/include
 )
 
 add_definitions( ${PCL_DEFINITIONS} )
@@ -94,6 +101,7 @@ src/Initializer.cc
 src/Viewer.cc
 src/PointCloudMapping.cc
 src/StereoMatch.cc
+src/StereoMatchCuda.cc
 )
 
 target_link_libraries(${PROJECT_NAME}
@@ -103,6 +111,8 @@ ${Pangolin_LIBRARIES}
 ${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/libDBoW2.so
 ${PROJECT_SOURCE_DIR}/Thirdparty/g2o/lib/libg2o.so
 ${PCL_LIBRARIES}
+${PROJECT_SOURCE_DIR}/Thirdparty/libSGM/lib/libsgm.so
+CUDA::cudart
 )
 
 # Build examples

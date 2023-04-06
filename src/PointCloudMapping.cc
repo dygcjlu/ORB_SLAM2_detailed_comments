@@ -36,11 +36,22 @@ PointCloudMapping::PointCloudMapping(double resolution_, double meank_, double t
     : mabIsUpdating(false),m_fMaxDepth(1.0),m_fMinDepth(0.001), m_fFloatZero(0.000001)
     ,m_bIsBusy(false), m_bFirstReceived(false)
 {
+    m_bIsSaveData = true;
+    m_bUseCuda = true;
     m_fDepthDiffStrict = 0.01;
     m_nMinViewNum = 4;
     m_fGoodViewRatio = 0.75;
+    if(m_bUseCuda)
+    {
+        m_stereoMatchCuda.Init();
 
-    m_stereoMatch.Init();
+    }else{
+        m_stereoMatch.Init();
+
+    }
+
+   
+   
     shutDownFlag = false;
     this->resolution = resolution_;
     this->meank = meank_;
@@ -180,7 +191,17 @@ void PointCloudMapping::generatePointCloudStereo(KeyFrame *kf) //,Eigen::Isometr
         cv::cvtColor(kf->imRightRgb, kf->imRightRgb, cv::COLOR_GRAY2BGR);
     }
 
-    m_stereoMatch.ComputeDepthMap(kf->imLeftRgb, kf->imRightRgb, kf->imDepth);
+    //
+    if(m_bUseCuda)
+    {
+        
+        m_stereoMatchCuda.ComputeDepthMap(kf->imLeftRgb, kf->imRightRgb, kf->imDepth);
+
+    }else{
+        
+        m_stereoMatch.ComputeDepthMap(kf->imLeftRgb, kf->imRightRgb, kf->imDepth);
+
+    }
 
     pcl::PointCloud<pcl::PointXYZRGBA>::Ptr pPointCloud(new pcl::PointCloud<pcl::PointXYZRGBA>);
     //pcl::PointCloud<pcl::PointXYZRGB>::Ptr pPointCloud(new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -259,12 +280,17 @@ void PointCloudMapping::SaveCameraPosition( std::list<KeyFrame *>& lNewKeyFrames
     globalCameraMap->height = 1;
     globalCameraMap->width = globalCameraMap->points.size();
     globalCameraMap->is_dense = false;
-    std::string strSavePath = "/media/xxd/Data2/datasets/3d/za/";
 
-    std::string strSaveName = strSavePath + "camera_position.ply";
-    pcl::PLYWriter writer;
-	writer.write(strSaveName, *globalCameraMap);
-    std::cout<<"save camera position"<<std::endl;
+    if(m_bIsSaveData)
+    {
+        //std::string strSavePath = "/media/xxd/Data2/datasets/3d/za/";
+
+        std::string strSaveName = m_strSavePath + "camera_position.ply";
+        pcl::PLYWriter writer;
+	    writer.write(strSaveName, *globalCameraMap);
+   
+    }
+    
 
 
 }
@@ -358,12 +384,18 @@ void PointCloudMapping::viewer()
 
             if(nKFCount%10 == 0)
             {
-                std::string strSavePath = "/media/xxd/Data2/datasets/3d/za/";
+                
+                if(m_bIsSaveData)
+                {
+                    //std::string strSavePath = "/media/xxd/Data2/datasets/3d/za/";
 
-                std::string strSaveName = strSavePath + std::to_string(nKFCount) + "_global.ply";
-                pcl::PLYWriter writer;
-	            writer.write(strSaveName, *globalMap);
-                std::cout<<"save global pcl cloud, nKFCount:"<<nKFCount<<std::endl;
+                    std::string strSaveName = m_strSavePath + std::to_string(nKFCount) + "_global.ply";
+                    pcl::PLYWriter writer;
+	                writer.write(strSaveName, *globalMap);
+                    std::cout<<"save global pcl cloud, nKFCount:"<<nKFCount<<std::endl;
+
+                }
+                
   
             }
         }
@@ -443,7 +475,18 @@ void PointCloudMapping::updatecloud(Map &curMap)
 
 int PointCloudMapping::SetRectifiedQ(cv::Mat Q)
 {
-    m_stereoMatch.SetQ(Q);
+    //
+    
+    if(m_bUseCuda)
+    {
+        
+        m_stereoMatchCuda.SetQ(Q);
+
+    }else{
+        
+        m_stereoMatch.SetQ(Q);
+
+    }
     return 0;
 }
 
@@ -474,6 +517,10 @@ bool PointCloudMapping::IsDepthSimilar(float d1, float d2, float fThreshold)
 
 void PointCloudMapping::FilterDepthMap(KeyFrame* kf)
 {
+    if(kf->isBad())
+    {
+        return;
+    }
     // cv::Mat newDepthMap = cv::Mat::zeros(kf->imDepth.rows, kf->imDepth.cols, CV_32FC3);
     cv::Mat newDepthMap = kf->imDepth.clone();
 
@@ -554,9 +601,14 @@ void PointCloudMapping::FilterDepthMap(KeyFrame* kf)
     }
  
     newDepthMap.copyTo(kf->imDepth);
+    if(m_bIsSaveData)
+    {
+        std::string strSaveName = m_strSavePath + std::to_string(kf->mnId) + "_" + "filtered.ply";
+        SavePCLCloud(kf->imLeftRgb, kf->imDepth, strSaveName);
+    
+    }
 
-    std::string strSaveName = m_strSavePath + std::to_string(kf->mnId) + "_" + "filtered.ply";
-    SavePCLCloud(kf->imLeftRgb, kf->imDepth, strSaveName);
+    
 
  
     {
@@ -580,6 +632,11 @@ void PointCloudMapping::FilterDepthMap(KeyFrame* kf)
 
 void PointCloudMapping::ProjectFromNeighbor(KeyFrame* kf)
 {
+    if(kf->isBad())
+    {
+       return;
+    }
+
     int nTopN = 15;
     std::vector<KeyFrame*> vecNeighborKF = kf->GetBestCovisibilityKeyFrames(nTopN);
     cout<<"neighbor kf num:"<<vecNeighborKF.size()<<endl;
@@ -597,6 +654,11 @@ void PointCloudMapping::ProjectFromNeighbor(KeyFrame* kf)
 
     for(auto& neighborKF : vecNeighborKF)
     {
+        if(neighborKF->isBad())
+        {
+           cout<<"this neighbor is a bad key frame, id: "<<neighborKF->mnId<<endl;
+           continue;
+        }
         if(neighborKF->imDepth.empty())
         {
             cout<<"this neighbor does not have depth map, id: "<<neighborKF->mnId<<endl;
@@ -746,13 +808,28 @@ void PointCloudMapping::GenerateDepthMapThread()
             }
 
             std::chrono::steady_clock::time_point time_start = std::chrono::steady_clock::now();
-            m_stereoMatch.ComputeDepthMap(it->second->imLeftRgb, it->second->imRightRgb, it->second->imDepth);
+            //
+            
+            if(m_bUseCuda)
+            {
+                m_stereoMatchCuda.ComputeDepthMap(it->second->imLeftRgb, it->second->imRightRgb, it->second->imDepth);
+                
+
+            }else{
+                m_stereoMatch.ComputeDepthMap(it->second->imLeftRgb, it->second->imRightRgb, it->second->imDepth);
+        
+            }
             std::chrono::steady_clock::time_point time_end = std::chrono::steady_clock::now();
             auto time_d = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(time_end - time_start).count();
             cout<<"key frame compute depth map, id:"<<it->first<<"time elapse:"<< time_d<<endl;
+            if(m_bIsSaveData)
+            {
+                std::string strSaveName = m_strSavePath + std::to_string(it->second->mnId) + "_" + ".ply";
+                SavePCLCloud(it->second->imLeftRgb, it->second->imDepth, strSaveName);
 
-            std::string strSaveName = m_strSavePath + std::to_string(it->second->mnId) + "_" + ".ply";
-            SavePCLCloud(it->second->imLeftRgb, it->second->imDepth, strSaveName);
+            }
+
+            
         }
 
        
@@ -827,9 +904,11 @@ void PointCloudMapping::SavePCLCloud(cv::Mat& img, cv::Mat& xyz, std::string str
     i++;
     std::string strSaveName = strSavePath + std::to_string(i) + ".ply";
     */
-
     pcl::PLYWriter writer;
 	writer.write(strFileName, *pPointCloud);
+   
+
+   
    
    
      return;
@@ -892,10 +971,15 @@ void PointCloudMapping::FusePCLCloud()
     voxel->setInputCloud(m_newGlobalMap);
     voxel->filter(*m_newGlobalMap);
 
-    std::string strSaveName = m_strSavePath + "_global.ply";
-    pcl::PLYWriter writer;
-	writer.write(strSaveName, *m_newGlobalMap);
-    std::cout<<"save global pcl cloud"<<std::endl;
+    if(m_bIsSaveData)
+    {
+        std::string strSaveName = m_strSavePath + "_global.ply";
+        pcl::PLYWriter writer;
+	    writer.write(strSaveName, *m_newGlobalMap);
+        std::cout<<"save global pcl cloud"<<std::endl;
+    }
+
+    
   
 }
 
@@ -1113,12 +1197,14 @@ void PointCloudMapping::FusePCLCloud2()
     voxel->setInputCloud(pPointCloud);
     voxel->filter(*pPointCloud);
 
-    std::string strSaveName = m_strSavePath + "_global2.ply";
-    pcl::PLYWriter writer;
-	writer.write(strSaveName, *pPointCloud);
-    std::cout<<"save global2 pcl cloud"<<std::endl;
+    if(m_bIsSaveData)
+    {
+        std::string strSaveName = m_strSavePath + "_global2.ply";
+        pcl::PLYWriter writer;
+	    writer.write(strSaveName, *pPointCloud);
+        std::cout<<"save global2 pcl cloud"<<std::endl;
+    }
 
-  
 }
 
 
