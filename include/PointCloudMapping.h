@@ -1,20 +1,11 @@
-/*
- * <one line to give the program's name and a brief idea of what it does.>
- * Copyright (C) 2016  <copyright holder> <email>
- * 
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- * 
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- * 
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- * 
+/*** 
+ * @Author: DYG
+ * @Date: 2023-05-25 10:38:16
+ * @LastEditors: DYG
+ * @LastEditTime: 2023-07-06 17:11:24
+ * @FilePath: /ORB_SLAM2_detailed_comments/include/PointCloudMapping.h
+ * @Description: 
+ * @Copyright (c) 2023 by HJ, All Rights Reserved. 
  */
 
 #ifndef POINTCLOUDMAPPING_H
@@ -64,13 +55,138 @@ public:
 
     PointCloudMapping(double resolution_, double meank_, double thresh_);
     ~PointCloudMapping();
-    void save();
-    // 插入一个keyframe，会更新一次地图
-    void insertKeyFrame(KeyFrame *kf, cv::Mat &color, cv::Mat &depth, int idk, vector<KeyFrame *> vpKFs);
+    //void save();
+
+    /*** 
+     * @description: 获取关键帧
+     * @param {KeyFrame} *kf 关键帧对象指针
+     * @return {*}
+     */    
     void insertKeyFrame(KeyFrame *kf);
+
+    /*** 
+     * @description: 释放资源
+     * @return {*}
+     */    
     void shutdown();
+
+    /*** 
+     * @description: 
+     * @return {*}
+     */    
+
+    /*** 
+     * @description: 点云生成和可视化线程
+     * @return {*}
+     */    
     void viewer();
-    void inserttu(cv::Mat &color, cv::Mat &depth, int idk);
+
+
+    //void inserttu(cv::Mat &color, cv::Mat &depth, int idk);
+
+public:
+    /*** 
+     * @description: 设置立体校正的Q矩阵
+     * @param {Mat} Q 立体校正矩阵
+     * @return {int} 成功返回0，其他为失败
+     */    
+    int SetRectifiedQ(cv::Mat Q);
+
+    /*** 
+     * @description: 设置相机内参矩阵
+     * @param {Mat} P
+     * @return {int} 成功返回0，其他为失败
+     */    
+    int SetRectifiedP(cv::Mat P);
+
+
+    /*** 
+     * @description: 保存相机轨迹位置数据
+     * @param {KeyFrame} * 关键帧列表
+     * @return {*}
+     */        
+    void SaveCameraPosition( std::list<KeyFrame *>& lNewKeyFrames);
+
+    //thread, generate depth map from stereo match
+    /*** 
+     * @description: 点云生成线程，先获取全部关键帧，生成深度图，然后融合深度图生成最终的点云数据
+     * @return {*}
+     */    
+    void GenerateDepthMapThread();
+
+    /*** 
+     * @description: 点云生成线程，扫描过程中实时获取关键帧，生成深度图，扫描完成后再融合所有深度图生成最终的点云数据
+     * @return {*}
+     */    
+    void RealTimeGeneratePointCloudThread();
+
+    /*** 
+     * @description: 将领域帧投影到当前帧
+     * @param {KeyFrame*} kf 当前关键帧指针
+     * @return {*}
+     */    
+    void ProjectFromNeighbor(KeyFrame* kf);
+
+    /*** 
+     * @description: 保存单帧图像的pcl点云数据
+     * @param {Mat&} img rgb图像
+     * @param {Mat&} xyz 深度图
+     * @param {string} strFileName 保存文件名
+     * @return {*}
+     */    
+    void SavePCLCloud(cv::Mat& img, cv::Mat& xyz, std::string strFileName);
+
+
+    /*** 
+     * @description: 判断两个深度是否足够接近到可以被认为是同一个点
+     * @param {float} d1  深度1
+     * @param {float} d2  深度2
+     * @param {float} fThreshold  阀值
+     * @return {bool}
+     */    
+    bool IsDepthSimilar(float d1, float d2, float fThreshold);
+
+    /*** 
+     * @description: 判断两个关键帧的相对位姿是否发生了改变
+     * @param {KeyFrame} *kf 当前帧指针
+     * @param {KeyFrame} *NeighborKf 领域帧指针
+     * @return {bool}
+     */    
+    bool IsPoseChange(KeyFrame *kf, KeyFrame *NeighborKf);
+
+    /*** 
+     * @description: 单帧深度图优化
+     * @param {KeyFrame*} kf 当前关键帧指针
+     * @return {*}
+     */    
+    void FilterDepthMap(KeyFrame* kf);
+
+    /*** 
+     * @description: 删除非法的关键帧
+     * @return {*}
+     */    
+    void DeleteBadKF();
+
+    
+    /*** 
+     * @description: 判断当前线程是否空闲
+     * @return {bool}
+     */    
+    bool IsThreadBusy();
+
+    /*** 
+     * @description: 将所有深度图直接融合成一个三维点云
+     * @return {*}
+     */    
+    void FusePCLCloud();
+
+    /*** 
+     * @description: 将所有深度图融合成一个三维点云，同时过滤掉部分质量差的点云
+     * @return {*}
+     */    
+    void FusePCLCloud2();
+
+public:
     int mnloopcount = 0;
     vector<KeyFrame *> currentvpKFs;
     bool cloudbusy = false;
@@ -79,42 +195,8 @@ public:
     void Clear();
     bool bStop = false;
 
-    
-
     // 关于更新时的变量
     std::atomic<bool> mabIsUpdating;
-public:
-    int SetRectifiedQ(cv::Mat Q);
-
-    int SetRectifiedP(cv::Mat P);
-
-
-    void SaveCameraPosition( std::list<KeyFrame *>& lNewKeyFrames);
-
-    //thread, generate depth map from stereo match
-    void GenerateDepthMapThread();
-
-    void RealTimeGeneratePointCloudThread();
-
-    void ProjectFromNeighbor(KeyFrame* kf);
-
-    void SavePCLCloud(cv::Mat& img, cv::Mat& xyz, std::string strFileName);
-
-    bool IsDepthSimilar(float d1, float d2, float fThreshold);
-
-    bool IsPoseChange(KeyFrame *kf, KeyFrame *NeighborKf);
-
-    void FilterDepthMap(KeyFrame* kf);
-
-    void DeleteBadKF();
-
-    bool IsThreadBusy();
-
-    void FusePCLCloud();
-
-    void FusePCLCloud2();
-
-
 
 
 protected:

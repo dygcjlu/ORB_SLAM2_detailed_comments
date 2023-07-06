@@ -105,22 +105,7 @@ namespace ORB_SLAM2
         std::unique_lock<std::mutex> lck(mMutexGlobalMap);
         globalMap.reset(new pcl::PointCloud<pcl::PointXYZRGBA>);
     }
-    void PointCloudMapping::insertKeyFrame(KeyFrame *kf, cv::Mat &color, cv::Mat &depth, int idk, vector<KeyFrame *> vpKFs)
-    {
-        // cout << "receive a keyframe, 第" << kf->mnId << "个" << endl;
-        // if (color.empty())
-        //     return;
-        // unique_lock<mutex> lck(keyframeMutex);
-        // keyframes.push_back(kf);
-        // currentvpKFs = vpKFs;
-        // PointCloude pointcloude;
-        // pointcloude.pcID = idk;
-        // pointcloude.T = ORB_SLAM3::Converter::toSE3Quat(kf->GetPose());
-        // pointcloude.pcE = generatePointCloud(kf, color, depth);
-        // kf->mptrPointCloud = pointcloude.pcE;
-        // pointcloud.push_back(pointcloude);
-        // keyFrameUpdated.notify_one();
-    }
+    
 
     void PointCloudMapping::insertKeyFrame(KeyFrame *kf)
     {
