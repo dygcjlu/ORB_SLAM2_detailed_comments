@@ -125,7 +125,7 @@ int StereoMatchCuda::ComputeDepthMap(cv::Mat& Left, cv::Mat& Right,  cv::Mat& xy
     d_disparity.download(disparity.data);
     */
     cv::Mat disparity(leftGray.size(), CV_16S);
-    std::cout<<"img size:"<<leftGray.size()<<std::endl;
+    //std::cout<<"img size:"<<leftGray.size()<<std::endl;
 
 	m_pSGMCuda->execute(leftGray.data, rightGray.data, disparity.data);
 

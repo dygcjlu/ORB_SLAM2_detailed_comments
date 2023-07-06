@@ -72,6 +72,15 @@ KeyFrame::KeyFrame(Frame &F, Map *pMap, KeyFrameDatabase *pKFDB):
 
     // 设置当前关键帧的位姿
     SetPose(F.mTcw);
+
+    imLeftRgb.release();
+    imRightRgb.release();
+    imDepth.release();
+}
+
+KeyFrame::~KeyFrame()
+{
+    std::cout<<"KeyFrame::~KeyFrame, id:"<<mnId<<std::endl;
 }
 
 // Bag of Words Representation 计算词袋表示
@@ -644,6 +653,7 @@ void KeyFrame::SetBadFlag()
         {
             // mbNotErase表示不应该删除，于是把mbToBeErased置为true，假装已经删除，其实没有删除
             mbToBeErased = true;
+            std::cout<<"pretent to erase this frame id:"<<mnId<<endl;
             return;
         }
     }
@@ -747,6 +757,7 @@ void KeyFrame::SetBadFlag()
         mTcp = Tcw*mpParent->GetPoseInverse();
         // 标记当前关键帧已经挂了
         mbBad = true;
+        //std::cout<<"set this frame to bad id:"<<mnId<<endl;
     }  
 
     // 地图和关键帧数据库中删除该关键帧

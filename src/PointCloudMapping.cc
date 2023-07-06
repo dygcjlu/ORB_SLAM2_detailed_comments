@@ -36,7 +36,7 @@ namespace ORB_SLAM2
         : mabIsUpdating(false), m_fMaxDepth(1.0), m_fMinDepth(0.001), m_fFloatZero(0.000001), m_bIsBusy(false), m_bFirstReceived(false)
     {
         m_bIsSaveData = true;
-        m_bUseCuda = true;
+        m_bUseCuda = false;
         m_fDepthDiffStrict = 0.01;
         m_nMinViewNum = 4;
         m_fGoodViewRatio = 0.75;
@@ -65,9 +65,22 @@ namespace ORB_SLAM2
 
         // viewerThread = make_shared<thread>(bind(&PointCloudMapping::viewer, this));
 
+#ifdef REAL_TIME_GENERATE
+        m_realTimeDepthMapThread = make_shared<thread>(bind(&PointCloudMapping::RealTimeGeneratePointCloudThread, this));
+#else
         m_depthMapThread = make_shared<thread>(bind(&PointCloudMapping::GenerateDepthMapThread, this));
+#endif
+
+        //
+
+        
 
         m_strSavePath = "/media/xxd/Data2/datasets/3d/za/";
+    }
+
+    PointCloudMapping::~PointCloudMapping()
+    {
+        shutdown();
     }
 
     void PointCloudMapping::shutdown()
@@ -75,10 +88,15 @@ namespace ORB_SLAM2
         {
             unique_lock<mutex> lck(shutDownMutex);
             shutDownFlag = true;
-            keyFrameUpdated.notify_one();
+            //keyFrameUpdated.notify_one();
         }
-        viewerThread->join();
+        //viewerThread->join();
+#ifdef REAL_TIME_GENERATE
+        m_realTimeDepthMapThread->join();
+#else
         m_depthMapThread->join();
+#endif
+ 
     }
 
     void PointCloudMapping::Clear()
@@ -106,7 +124,7 @@ namespace ORB_SLAM2
 
     void PointCloudMapping::insertKeyFrame(KeyFrame *kf)
     {
-        cout << "receive a keyframe, id" << kf->mnId << endl;
+       
         if (kf->imLeftRgb.empty())
         {
             cout << "kf->imLeftRgb.empty()" << endl;
@@ -114,14 +132,16 @@ namespace ORB_SLAM2
         }
         if (kf->isBad())
         {
-            cout << "this frame is bad!" << endl;
+            //cout << "this frame is bad!" << endl;
             return;
         }
 
         if (!m_bFirstReceived)
         {
             m_bFirstReceived = true;
+            sleep(1);
         }
+        //cout << "receive a keyframe, id" << kf->mnId << endl;
 
         {
             kf->imDepth.release();
@@ -487,10 +507,70 @@ namespace ORB_SLAM2
         return fDiff < fThreshold;
     }
 
+    void PointCloudMapping::DeleteBadKF()
+    {
+        std::map<int, KeyFrame *>::iterator it;
+        
+        for(it = m_mapKeyFrame.begin(); it != m_mapKeyFrame.end();)
+        {
+            
+
+            if(it->second->isBad())
+            {
+                //erase bad key frame and its neighbors in m_mapNeighborDepth
+                if (m_mapNeighborDepth.count(it->second->mnId))
+                {
+                    m_mapNeighborDepth[it->second->mnId].clear();
+                    m_mapNeighborDepth.erase(it->second->mnId);
+                }
+
+                //if this kf is neighbor of other kf, erase it
+                std::map<int, std::map<int, cv::Mat>>::iterator iter;
+                for(iter = m_mapNeighborDepth.begin(); iter != m_mapNeighborDepth.end();iter++)
+                {
+                    if(iter->second.count(it->second->mnId))
+                    {
+                        iter->second[it->second->mnId].release();
+
+                        iter->second.erase(it->second->mnId);
+                        
+                    }          
+                }  
+
+                it->second->imLeftRgb.release();
+                it->second->imRightRgb.release();
+                it->second->imDepth.release();
+
+                //erase bad key frame in m_mapKeyFrame
+                cout<<"delete this bad kf from m_mapKeyFrame, id:"<<it->second->mnId<<endl;
+                it = m_mapKeyFrame.erase(it);
+            }else{
+
+                ++it;
+            }
+        }
+
+        /*
+        cout<<"m_mapKeyFrame size:"<<m_mapKeyFrame.size()<<endl;
+        std::map<int, std::map<int, cv::Mat>>::iterator itor;
+        for(itor = m_mapNeighborDepth.begin(); itor != m_mapNeighborDepth.end();itor++)
+        {
+            cout<<"kf id:"<<itor->first<<", map size:"<< itor->second.size()<<endl;
+                        
+        }  
+        */
+
+         
+
+        
+
+    }
+
     void PointCloudMapping::FilterDepthMap(KeyFrame *kf)
     {
         if (kf->isBad())
         {
+            cout << "this is bad kf, id:"<<kf->mnId << endl;
             return;
         }
         // cv::Mat newDepthMap = cv::Mat::zeros(kf->imDepth.rows, kf->imDepth.cols, CV_32FC3);
@@ -527,6 +607,7 @@ namespace ORB_SLAM2
 
                     for (auto &it : tmpNeighborDepthMap)
                     {
+                        
                         float z = it.second.at<cv::Vec3f>(i, j)[2];
                         if (z > 0)
                         {
@@ -571,6 +652,7 @@ namespace ORB_SLAM2
             std::string strSaveName = m_strSavePath + std::to_string(kf->mnId) + "_" + "filtered.ply";
             SavePCLCloud(kf->imLeftRgb, kf->imDepth, strSaveName);
         }
+        /*
 
         {
             // free map memory
@@ -586,18 +668,48 @@ namespace ORB_SLAM2
 
             m_mapNeighborDepth.clear();
         }
+        */
+    }
+
+    bool PointCloudMapping::IsPoseChange(KeyFrame *kf, KeyFrame *NeighborKf)
+    {
+        int nId = kf->mnId * 100000 + NeighborKf->mnId;
+        cv::Mat Toldc1c2 = kf->GetPose() * NeighborKf->GetPoseInverse();  //Tc1w * Twc2 
+        cv::Mat Tnewc1c2 = m_mapKF2NeighborPose[nId];
+        bool bIsChanged = false;
+        float fEqualThreshold = 0.000001;
+        for(int i = 0; i < Tnewc1c2.rows; i++)
+        {
+            for(int j = 0; j < Tnewc1c2.cols; j++)
+            {
+                if(fabs(Toldc1c2.at<float>(i, j) - Tnewc1c2.at<float>(i, j)) > fEqualThreshold)
+                {
+                    bIsChanged = true;
+                    break;
+                }
+            }
+
+            if(bIsChanged)
+            {
+                break;
+            }
+        }
+
+
+        return bIsChanged;
     }
 
     void PointCloudMapping::ProjectFromNeighbor(KeyFrame *kf)
     {
         if (kf->isBad())
         {
+            cout << "this is bad kf, id:"<<kf->mnId << endl;
             return;
         }
 
         int nTopN = 15;
         std::vector<KeyFrame *> vecNeighborKF = kf->GetBestCovisibilityKeyFrames(nTopN);
-        cout << "neighbor kf num:" << vecNeighborKF.size() << endl;
+        //cout << "neighbor kf num:" << vecNeighborKF.size() << endl;
         // current kf
         cv::Mat curKFTcw = kf->GetPose();
         cv::Mat KT = m_K * curKFTcw;
@@ -634,19 +746,26 @@ namespace ORB_SLAM2
                 cout << "this neighbor is a bad key frame, id: " << neighborKF->mnId << endl;
                 continue;
             }
+
             if (neighborKF->imDepth.empty())
             {
-                cout << "this neighbor does not have depth map, id: " << neighborKF->mnId << endl;
+                //cout << "this neighbor does not have depth map, id: " << neighborKF->mnId << endl;
                 continue;
             }
 
             if (m_mapNeighborDepth.count(kf->mnId))
             {
                 std::map<int, cv::Mat> &tmpNeighborDepth = m_mapNeighborDepth[kf->mnId];
-                if (tmpNeighborDepth.count(neighborKF->mnId))
+                if (tmpNeighborDepth.count(neighborKF->mnId)  )
                 {
                     // alreay exist
-                    continue;
+                    if(!IsPoseChange(kf, neighborKF))
+                    {
+                        //pose is not changed since last time update this depth
+                        continue;
+
+                    }
+                    
                 }
             }
 
@@ -664,6 +783,8 @@ namespace ORB_SLAM2
             float Twc21 = Twc.at<float>(2, 1);
             float Twc22 = Twc.at<float>(2, 2);
             float Twc23 = Twc.at<float>(2, 3);
+
+            //cout << "neighbor id: " << neighborKF->mnId << " w:"<<neighborKF->imDepth.cols<< "h:"<<neighborKF->imDepth.rows << endl;
 
             for (int i = 0; i < neighborKF->imDepth.rows; i++)
             {
@@ -718,7 +839,12 @@ namespace ORB_SLAM2
             }
 
             m_mapNeighborDepth[kf->mnId][neighborKF->mnId] = neighbor2CurDepth;
-            std::string strSaveName = m_strSavePath + std::to_string(kf->mnId) + "_" + std::to_string(neighborKF->mnId) + ".ply";
+            {
+                int nId = kf->mnId * 100000 + neighborKF->mnId;
+                cv::Mat Tc1c2 = kf->GetPose() * neighborKF->GetPoseInverse();  //Tc1w * Twc2 
+                m_mapKF2NeighborPose[nId] = Tc1c2;
+            }
+            //std::string strSaveName = m_strSavePath + std::to_string(kf->mnId) + "_" + std::to_string(neighborKF->mnId) + ".ply";
 
             // SavePCLCloud(kf->imLeftRgb, neighbor2CurDepth, strSaveName);
         }
@@ -733,12 +859,21 @@ namespace ORB_SLAM2
 
     void PointCloudMapping::GenerateDepthMapThread()
     {
+        pcl::visualization::CloudViewer viewer("viewer");
         bool bFirstReceived = false;
         while (!shutDownFlag)
         {
             m_bIsBusy = false;
             usleep(1 * 1000 * 1000); // 1ms
             int nKFNum = 0;
+
+            // wait until all kf are received
+            if (m_bFirstReceived && !bFirstReceived)
+            {
+                bFirstReceived = true;
+                sleep(1); // 1s
+            }
+
             std::list<KeyFrame *> lNewKeyFrames;
             {
                 unique_lock<mutex> lck(keyframeMutex);
@@ -756,12 +891,7 @@ namespace ORB_SLAM2
                 continue;
             }
 
-            // wait until all kf are received
-            if (m_bFirstReceived && !bFirstReceived)
-            {
-                bFirstReceived = true;
-                sleep(1); // 1s
-            }
+            
 
             m_bIsBusy = true;
 
@@ -779,6 +909,7 @@ namespace ORB_SLAM2
             }
 
             // compute depth map
+            std::chrono::steady_clock::time_point time_start = std::chrono::steady_clock::now();
             for (auto it = m_mapKeyFrame.begin(); it != m_mapKeyFrame.end(); ++it)
             {
                 if (!it->second->imDepth.empty())
@@ -787,9 +918,9 @@ namespace ORB_SLAM2
                     continue;
                 }
 
-                std::chrono::steady_clock::time_point time_start = std::chrono::steady_clock::now();
+                
                 //
-
+                it->second->imDepth.create(it->second->imLeftRgb.size(), it->second->imLeftRgb.type());
                 if (m_bUseCuda)
                 {
                     m_stereoMatchCuda.ComputeDepthMap(it->second->imLeftRgb, it->second->imRightRgb, it->second->imDepth);
@@ -798,37 +929,47 @@ namespace ORB_SLAM2
                 {
                     m_stereoMatch.ComputeDepthMap(it->second->imLeftRgb, it->second->imRightRgb, it->second->imDepth);
                 }
-                std::chrono::steady_clock::time_point time_end = std::chrono::steady_clock::now();
-                auto time_d = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(time_end - time_start).count();
-                cout << "key frame compute depth map, id:" << it->first << "time elapse:" << time_d << endl;
+               
                 if (m_bIsSaveData)
                 {
                     std::string strSaveName = m_strSavePath + std::to_string(it->second->mnId) + "_" + ".ply";
                     SavePCLCloud(it->second->imLeftRgb, it->second->imDepth, strSaveName);
                 }
             }
+            std::chrono::steady_clock::time_point time_end = std::chrono::steady_clock::now();
+            auto time_d = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(time_end - time_start).count();
+            cout << "compute depth map,time elapse:" << time_d << endl;
 
             for (auto it = m_mapKeyFrame.begin(); it != m_mapKeyFrame.end(); ++it)
             {
 
-                cout << "project neighbor depth map to current, id:" << it->first << endl;
+                //cout << "project neighbor depth map to current, id:" << it->first << endl;
                 // project neighbor depth map to current
-                std::chrono::steady_clock::time_point time_start = std::chrono::steady_clock::now();
+                //std::chrono::steady_clock::time_point time_start = std::chrono::steady_clock::now();
                 ProjectFromNeighbor(it->second);
-                std::chrono::steady_clock::time_point time_end = std::chrono::steady_clock::now();
-                auto time_d = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(time_end - time_start).count();
-                cout << "ProjectFromNeighbor time elapse:" << time_d << endl;
+                //std::chrono::steady_clock::time_point time_end = std::chrono::steady_clock::now();
+                //auto time_d = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(time_end - time_start).count();
+                //cout << "ProjectFromNeighbor time elapse:" << time_d << endl;
 
                 // filter depth map
                 FilterDepthMap(it->second);
 
-                std::chrono::steady_clock::time_point time_2 = std::chrono::steady_clock::now();
-                auto time_d2 = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(time_2 - time_end).count();
-                cout << "FilterDepthMap time elapse:" << time_d2 << endl;
+                //std::chrono::steady_clock::time_point time_2 = std::chrono::steady_clock::now();
+                //auto time_d2 = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(time_2 - time_end).count();
+                //cout << "FilterDepthMap time elapse:" << time_d2 << endl;
             }
+            std::chrono::steady_clock::time_point project_time = std::chrono::steady_clock::now();
+            auto project_time_d2 = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(project_time - time_end).count();
+            cout << "project and filter time elapse:" << project_time_d2 << endl;
+
+            DeleteBadKF();
+            /*
 
             FusePCLCloud();
-            // FusePCLCloud2();
+
+            viewer.showCloud(m_newGlobalMap);
+            sleep(5);*/
+            FusePCLCloud2();
         }
     }
 
@@ -885,6 +1026,12 @@ namespace ORB_SLAM2
     {
         for (auto it = m_mapKeyFrame.begin(); it != m_mapKeyFrame.end(); ++it)
         {
+            if(it->second->isBad())
+            {
+                cout << "this is bad kf, id:"<<it->second->mnId << endl;
+                continue;
+            }
+
             pcl::PointCloud<pcl::PointXYZRGBA>::Ptr pPointCloud(new pcl::PointCloud<pcl::PointXYZRGBA>);
             pcl::PointCloud<pcl::PointXYZRGBA>::Ptr pCloud(new pcl::PointCloud<pcl::PointXYZRGBA>);
             cv::Mat &depthMap = it->second->imDepth;
@@ -919,11 +1066,13 @@ namespace ORB_SLAM2
             pPointCloud->height = 1;
             pPointCloud->width = pPointCloud->points.size();
             pPointCloud->is_dense = true;
-            pcl::transformPointCloud(*(pPointCloud), *(pCloud), toMatrix4f(it->second->GetPoseInverse()));
+            if(pPointCloud->points.size() > 1)
             {
+                pcl::transformPointCloud(*(pPointCloud), *(pCloud), toMatrix4f(it->second->GetPoseInverse()));
                 std::unique_lock<std::mutex> lck(m_MutexNewGlobalMap);
                 *m_newGlobalMap += *pCloud;
             }
+            
         }
 
         // pcl::PointCloud<pcl::PointXYZRGBA>::Ptr tmp(new pcl::PointCloud<pcl::PointXYZRGBA>);
@@ -931,11 +1080,15 @@ namespace ORB_SLAM2
         // 去除孤立点这个比较耗时，用处也不是很大，可以去掉
         // statistical_filter->setInputCloud(globalMap);
         // statistical_filter->filter(*tmp);
+        if(m_newGlobalMap->points.size())
+        {
+            voxel->setInputCloud(m_newGlobalMap);
+            voxel->filter(*m_newGlobalMap);
+        }
 
-        voxel->setInputCloud(m_newGlobalMap);
-        voxel->filter(*m_newGlobalMap);
+        
 
-        if (m_bIsSaveData)
+        //if (m_bIsSaveData && m_newGlobalMap->points.size())
         {
             std::string strSaveName = m_strSavePath + "_global.ply";
             pcl::PLYWriter writer;
@@ -1025,15 +1178,15 @@ namespace ORB_SLAM2
                     }
 
                     int nIdexInMap = mapKFId2VecIndex[nKfId];
-                    int nIdexInUsedArr = nIdexInMap * h * w + m * w + n;
-                    int nPointIndex = arrIsDepthUsed[nIdexInUsedArr];
+                    int nIdexCurUsed = nIdexInMap * h * w + m * w + n;
+                    int nPointIndex = arrIsDepthUsed[nIdexCurUsed];
 
                     if (nPointIndex != 0)
                     {
                         // warn: will ignore some depth
                         continue;
                     }
-                    arrIsDepthUsed[nIdexInUsedArr] = nPointCount;
+                    //arrIsDepthUsed[nIdexCurUsed] = nPointCount;
 
                     float curKFX = kf->imDepth.at<cv::Vec3f>(m, n)[0];
                     float curKFY = kf->imDepth.at<cv::Vec3f>(m, n)[1];
@@ -1046,6 +1199,8 @@ namespace ORB_SLAM2
                     std::vector<KeyFrame *> vecNeighborKF = kf->GetBestCovisibilityKeyFrames(nTopNum);
                     int nGoodView = 0;
                     int nView = 0;
+                    CustomPoint3d tmpPoint3d;
+                    std::vector<int> vecTmpUsedIndex;
                     for (auto &neighborKF : vecNeighborKF)
                     {
 
@@ -1103,6 +1258,7 @@ namespace ORB_SLAM2
                             if (IsDepthSimilar(curKFInNeighborZ, neighborDepth, m_fDepthDiffStrict))
                             {
                                 nGoodView++;
+                                tmpPoint3d.vecViewId.push_back(neighborKF->mnId);
                             }
                         }
 
@@ -1114,12 +1270,13 @@ namespace ORB_SLAM2
                             neighborKF->imDepth.at<cv::Vec3f>(v2, u2)[2] = 0.;
                         }
 
-                        arrIsDepthUsed[nNeighborIdexInUsedArr] = nPointCount;
+                        //arrIsDepthUsed[nNeighborIdexInUsedArr] = nPointCount;
+                        vecTmpUsedIndex.push_back(nNeighborIdexInUsedArr);
                     }
 
                     if (nGoodView >= m_nMinViewNum)
                     {
-                        CustomPoint3d tmpPoint3d;
+                        //CustomPoint3d tmpPoint3d;
                         tmpPoint3d.nPointIndex = nPointCount;
                         tmpPoint3d.nPointViewNum = nGoodView;
                         tmpPoint3d.point3d[0] = curKFWPosX;
@@ -1130,6 +1287,14 @@ namespace ORB_SLAM2
                         tmpPoint3d.rgbcolor[2] = kf->imLeftRgb.at<cv::Vec3b>(m, n)[0];
 
                         mapPointCloud[nPointCount] = tmpPoint3d;
+
+                        arrIsDepthUsed[nIdexCurUsed] = nPointCount; //set used for current frame 
+                        for(auto& index : vecTmpUsedIndex) //set used for neighbor
+                        {
+                            arrIsDepthUsed[index] = nPointCount;
+                        }
+
+
                         nPointCount++;
                     }
                 }
@@ -1164,9 +1329,11 @@ namespace ORB_SLAM2
         pPointCloud->height = 1;
         pPointCloud->width = pPointCloud->points.size();
         pPointCloud->is_dense = true;
+        std::cout << "cloud size:"<< pPointCloud->points.size() << std::endl;
 
         voxel->setInputCloud(pPointCloud);
         voxel->filter(*pPointCloud);
+        std::cout << "cloud size, after filter:"<< pPointCloud->points.size() << std::endl;
 
         if (m_bIsSaveData)
         {
@@ -1176,5 +1343,138 @@ namespace ORB_SLAM2
             std::cout << "save global2 pcl cloud" << std::endl;
         }
     }
+
+    ////////////////////////////////////////////////////////////////
+    void PointCloudMapping::RealTimeGeneratePointCloudThread()
+    {
+        pcl::visualization::CloudViewer viewer("viewer");
+       
+        while (!shutDownFlag)
+        {
+            int nKFNum = 0;
+            std::list<KeyFrame *> lNewKeyFrames;
+            {
+                unique_lock<mutex> lck(keyframeMutex);
+                nKFNum = mlNewKeyFrames.size();
+                lNewKeyFrames = mlNewKeyFrames;
+                if (nKFNum != 0)
+                {
+                    mlNewKeyFrames.clear();
+                }
+            }
+
+            if (0 == nKFNum)
+            {
+                usleep(10 * 1000 * 1000); // 10ms
+                continue;
+            }
+
+            //cout << "get " << lNewKeyFrames.size() << " new key frame"<< endl;
+            // insert key frame to new map
+            int nNum = 0;
+            for (auto &kf : lNewKeyFrames)
+            {
+                if (m_mapKeyFrame.count(kf->mnId))
+                {
+                    continue;
+                }
+
+                if(kf->isBad())
+                {
+                    continue;
+                }
+
+                // it is a new key frame
+                m_mapKeyFrame[kf->mnId] = kf;
+                nNum++;
+                cout << "get new key frame, id:" << kf->mnId << endl;
+            }
+            cout << "get " << nNum << " new key frame"<< endl;
+
+            if(0 == nNum)
+            {
+                continue;
+            }
+
+            // compute depth map
+            std::chrono::steady_clock::time_point time_start = std::chrono::steady_clock::now();
+            for (auto it = m_mapKeyFrame.begin(); it != m_mapKeyFrame.end(); ++it)
+            {
+                if(it->second->isBad())
+                {
+                    cout << "bad frame not going to compute depth map, id:" << it->second->mnId << endl;
+                    continue;
+                }
+              
+                if (!it->second->imDepth.empty())
+                {
+                    // already have depth map
+                    continue;
+                }
+
+                if (m_bUseCuda)
+                {
+                    m_stereoMatchCuda.ComputeDepthMap(it->second->imLeftRgb, it->second->imRightRgb, it->second->imDepth);
+                }
+                else
+                {
+                    m_stereoMatch.ComputeDepthMap(it->second->imLeftRgb, it->second->imRightRgb, it->second->imDepth);
+                }
+               
+                if (m_bIsSaveData)
+                {
+                    std::string strSaveName = m_strSavePath + std::to_string(it->second->mnId) + "_" + ".ply";
+                    SavePCLCloud(it->second->imLeftRgb, it->second->imDepth, strSaveName);
+                }
+            }
+             std::chrono::steady_clock::time_point time_end = std::chrono::steady_clock::now();
+            auto time_d = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(time_end - time_start).count();
+            cout << "compute depth time elapse:" << time_d << endl;
+            
+
+            for (auto it = m_mapKeyFrame.begin(); it != m_mapKeyFrame.end(); ++it)
+            {
+
+                //cout << "project neighbor depth map to current, id:" << it->first << endl;
+                // project neighbor depth map to current
+                //std::chrono::steady_clock::time_point time_start = std::chrono::steady_clock::now();
+                ProjectFromNeighbor(it->second);
+                //std::chrono::steady_clock::time_point time_end = std::chrono::steady_clock::now();
+                //auto time_d = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(time_end - time_start).count();
+                //cout << "ProjectFromNeighbor time elapse:" << time_d << endl;
+                //cout << "ProjectFromNeighbor done" << endl;
+
+                // filter depth map
+                FilterDepthMap(it->second);
+                //cout << "FilterDepthMap done" << endl;
+
+                //std::chrono::steady_clock::time_point time_2 = std::chrono::steady_clock::now();
+                //auto time_d2 = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(time_2 - time_end).count();
+                //cout << "FilterDepthMap time elapse:" << time_d2 << endl;
+            }
+            std::chrono::steady_clock::time_point time_end1 = std::chrono::steady_clock::now();
+            auto time_d1 = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(time_end1 - time_end).count();
+            cout << "filter time elapse:" << time_d1 << endl;
+           
+
+            DeleteBadKF();
+
+            FusePCLCloud();
+            
+            if( m_newGlobalMap->points.size() >0)
+            {
+                cout << "global cloud size:" << m_newGlobalMap->points.size() << endl;
+                viewer.showCloud(m_newGlobalMap);
+            }
+            
+
+            std::chrono::steady_clock::time_point time_end2 = std::chrono::steady_clock::now();
+            auto time_d2 = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(time_end2 - time_end).count();
+            cout << "FusePCLCloud time elapse:" << time_d2 << endl;
+            
+        }
+         std::cout << "thread RealTimeGeneratePointCloudThread quit!" << std::endl;
+    }
+
 
 }

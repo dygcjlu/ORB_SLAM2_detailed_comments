@@ -39,6 +39,7 @@
 #include "Tracking.h"
 
 #include "KeyFrameDatabase.h"
+#include "PointCloudMapping.h"
 
 #include <thread>
 #include <mutex>
@@ -50,7 +51,7 @@ namespace ORB_SLAM2
 class Tracking;
 class LocalMapping;
 class KeyFrameDatabase;
-
+class PointCloudMapping;
 /// 回环检测线程
 class LoopClosing
 {
@@ -121,6 +122,12 @@ public:
     bool isFinished();
 
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+public:
+    void SetPointCloudMapper(PointCloudMapping* pPointCloudMapping)
+    {
+        mpPointCloudMapping = pPointCloudMapping;
+    }
 
 protected:
 
@@ -241,6 +248,8 @@ protected:
 
     /// 已经进行了的全局BA次数(包含中途被打断的)
     bool mnFullBAIdx;
+
+    PointCloudMapping* mpPointCloudMapping;
 };
 
 } //namespace ORB_SLAM

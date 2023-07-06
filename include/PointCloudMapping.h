@@ -43,6 +43,7 @@ struct CustomPoint3d
     int rgbcolor[3];
     int nPointIndex;
     int nPointViewNum;
+    std::vector<int> vecViewId; //kf id
 
     CustomPoint3d()
     {
@@ -62,6 +63,7 @@ public:
     // typedef pcl::PointCloud<PointT> PointCloud;
 
     PointCloudMapping(double resolution_, double meank_, double thresh_);
+    ~PointCloudMapping();
     void save();
     // 插入一个keyframe，会更新一次地图
     void insertKeyFrame(KeyFrame *kf, cv::Mat &color, cv::Mat &depth, int idk, vector<KeyFrame *> vpKFs);
@@ -92,19 +94,27 @@ public:
     //thread, generate depth map from stereo match
     void GenerateDepthMapThread();
 
+    void RealTimeGeneratePointCloudThread();
+
     void ProjectFromNeighbor(KeyFrame* kf);
 
     void SavePCLCloud(cv::Mat& img, cv::Mat& xyz, std::string strFileName);
 
     bool IsDepthSimilar(float d1, float d2, float fThreshold);
 
+    bool IsPoseChange(KeyFrame *kf, KeyFrame *NeighborKf);
+
     void FilterDepthMap(KeyFrame* kf);
+
+    void DeleteBadKF();
 
     bool IsThreadBusy();
 
     void FusePCLCloud();
 
     void FusePCLCloud2();
+
+
 
 
 protected:
@@ -144,9 +154,12 @@ protected:
     pcl::PointCloud<pcl::PointXYZRGBA>::Ptr globalCameraMap;
 
     shared_ptr<thread> m_depthMapThread;
+    shared_ptr<thread> m_realTimeDepthMapThread;
+    
 
     std::map<int, KeyFrame *> m_mapKeyFrame;
     std::map<int, std::map<int, cv::Mat>> m_mapNeighborDepth;
+    std::map<int, cv::Mat> m_mapKF2NeighborPose;
     cv::Mat m_K; //Intrinsics after rectified
     float m_fMaxDepth; //max depth of point 
     float m_fMinDepth; //min depth of point

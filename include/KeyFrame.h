@@ -70,6 +70,8 @@ public:
      */
     KeyFrame(Frame &F, Map* pMap, KeyFrameDatabase* pKFDB);
 
+    ~KeyFrame();
+
     // Pose functions
     // 这里的set,get需要用到锁
 

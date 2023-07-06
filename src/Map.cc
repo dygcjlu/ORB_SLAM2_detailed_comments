@@ -237,21 +237,24 @@ int Map::GeneratePointCloud()
         usleep(100*1000*1000); //100ms
     }
     
+    delete m_pPointCloudMapping;
     std::cout<<"GeneratePointCloud quit"<<std::endl;
+
    
     return 0;
 }
 
 // 对关键帧相关数据进行保存
-void Map::Save(const string &filename,const cv::MatSize image_size)
+void Map::Save(const string &strFilePath,const cv::MatSize image_size)
 {
 #ifdef STEREO_MATCH
     GeneratePointCloud();
     return;
 #endif
-    std::cout << "SFM Saving to "<< filename << std::endl;
+    std::string strFileName = strFilePath + "sfm.txt";
+    std::cout << "SFM Saving to "<< strFileName << std::endl;
     ofstream f;
-    f.open(filename.c_str());
+    f.open(strFileName.c_str());
 
     f << "MVS "<< image_size[1] << " "<< image_size[0] << endl;
     // 输出关键帧的数量
@@ -262,7 +265,7 @@ void Map::Save(const string &filename,const cv::MatSize image_size)
     for(auto kf:mspKeyFrames)
     {
         SaveKeyFrame(f,kf);
-        SaveKeyFrameImg(filename, kf);
+        SaveKeyFrameImg(strFilePath, kf);
     }
         
 
@@ -336,16 +339,20 @@ void Map::SaveKeyFrame(ofstream &f, KeyFrame *kf)
     
 }
 
-void Map::SaveKeyFrameImg(string filename, KeyFrame *kf)
+void Map::SaveKeyFrameImg(string strFilePath, KeyFrame *kf)
 {
     // /media/xxd/Data2/datasets/3d/TUM/rgbd_dataset_freiburg3_structure_texture_far/slam/sfm.txt
     //string img_root = "/media/xxd/Data2/datasets/3d/mine/0104/for_slam/mav0/cam0/data/";
     //string dst_root = "/media/xxd/Data2/datasets/3d/mine/0104/for_slam/keyframe/";
-    string img_root = "/media/xxd/Data2/datasets/3d/mine/0105/stereo/2/for_slam/mav0/cam0/data/";
-    string dst_root = "/media/xxd/Data2/datasets/3d/mine/0105/stereo/2/for_slam/keyframe/";
+    //string img_root = "/media/xxd/Data2/datasets/3d/mine/0105/stereo/2/for_slam/mav0/cam0/data/";
+    //string dst_root = "/media/xxd/Data2/datasets/3d/mine/0105/stereo/2/for_slam/keyframe/";
     //string img_root = "/media/xxd/Data2/datasets/3d/mine/0105/stereo/1/for_slam/mav0/cam0/data/";
     //string dst_root = "/media/xxd/Data2/datasets/3d/mine/0105/stereo/1/for_slam/keyframe/";
-    string strTime = std::to_string(kf->mTimeStamp*1e9);
+    std::string dst_root = strFilePath + "keyframe/";
+    std::string img_root = strFilePath + "mav0/cam0/data/";
+
+    //string strTime = std::to_string(kf->mTimeStamp*1e9);
+    string strTime = std::to_string(kf->mTimeStamp*1e6);
     int pos = strTime.find('.');
     if (pos == strTime.npos)
     {

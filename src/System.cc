@@ -42,6 +42,7 @@ System::System(const string &strVocFile,					//词典文件路径
 					 mbActivateLocalizationMode(false),			//没有这个模式转换标志
         			 mbDeactivateLocalizationMode(false)		//没有这个模式转换标志
 {
+    mpPointCloudMapping = nullptr;
     // Output welcome message
     cout << endl <<
     "ORB-SLAM2 Copyright (C) 2014-2016 Raul Mur-Artal, University of Zaragoza." << endl <<
@@ -144,6 +145,38 @@ System::System(const string &strVocFile,					//词典文件路径
         mpTracker->SetViewer(mpViewer);
     }
 
+#ifdef REAL_TIME_GENERATE
+    bool bCreatePointCloud = true;
+    if(STEREO == mSensor && bCreatePointCloud)
+    {
+        double dResolution = 0.001; //m
+        double dMeank =  50;
+        double dThresh = 1.0;  
+        mpPointCloudMapping = new PointCloudMapping(dResolution, dMeank, dThresh);
+        mpLocalMapper->SetPointCloudMapper(mpPointCloudMapping);
+        mpLoopCloser->SetPointCloudMapper(mpPointCloudMapping);
+
+        cv::Mat Q;
+        fsSettings["Custom.Q"] >> Q;
+        if(Q.empty())
+        {
+            cerr << "ERROR: There is no Q matrix!" << endl;
+        }
+        mpPointCloudMapping->SetRectifiedQ(Q);
+
+        cv::Mat P1;
+        fsSettings["LEFT.P"] >> P1;
+        if(P1.empty())
+        {
+            cerr << "ERROR: There is LEFT.P!" << endl; 
+        }
+
+        mpPointCloudMapping->SetRectifiedP(P1);
+    }else
+    {   
+        mpPointCloudMapping = nullptr;
+    }
+#endif
    
 
     //Set pointers between threads
@@ -410,6 +443,13 @@ void System::Shutdown()
     	   mpLoopCloser->isRunningGBA())			
     {
         usleep(5000);
+    }
+
+    if(mpPointCloudMapping!=nullptr)
+    {
+        mpPointCloudMapping->shutdown();
+        delete mpPointCloudMapping;
+        mpPointCloudMapping = nullptr;
     }
 
     //if(mpViewer)

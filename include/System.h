@@ -41,6 +41,7 @@
 #include "KeyFrameDatabase.h"
 #include "ORBVocabulary.h"
 #include "Viewer.h"
+#include "PointCloudMapping.h"
 
 namespace ORB_SLAM2
 {
@@ -52,6 +53,7 @@ class Map;
 class Tracking;
 class LocalMapping;
 class LoopClosing;
+class PointCloudMapping;
 
 //本类的定义
 class System
@@ -228,6 +230,10 @@ private:
     std::vector<MapPoint*> mTrackedMapPoints;
     std::vector<cv::KeyPoint> mTrackedKeyPointsUn;
     std::mutex mMutexState;
+
+    /////
+    PointCloudMapping* mpPointCloudMapping;
+
 };
 
 }// namespace ORB_SLAM

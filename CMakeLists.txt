@@ -8,6 +8,7 @@ ENDIF()
 
 MESSAGE("Build type: " ${CMAKE_BUILD_TYPE})
 add_definitions(-DSTEREO_MATCH)
+
 set(CUDA_ARCHS "86" CACHE STRING "List of architectures to generate device code for")
 find_package(CUDA REQUIRED)
 # dependent packages

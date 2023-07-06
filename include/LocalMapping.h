@@ -39,6 +39,7 @@
 #include "LoopClosing.h"
 #include "Tracking.h"
 #include "KeyFrameDatabase.h"
+#include "PointCloudMapping.h"
 
 #include <mutex>
 
@@ -49,6 +50,7 @@ namespace ORB_SLAM2
 class Tracking;
 class LoopClosing;
 class Map;
+class PointCloudMapping;
 
 /** @brief 局部建图线程类 */
 class LocalMapping
@@ -124,6 +126,12 @@ public:
     int KeyframesInQueue(){
         unique_lock<std::mutex> lock(mMutexNewKFs);
         return mlNewKeyFrames.size();
+    }
+
+public:
+    void SetPointCloudMapper(PointCloudMapping* pPointCloudMapping)
+    {
+        mpPointCloudMapping = pPointCloudMapping;
     }
 
 protected:
@@ -230,6 +238,10 @@ protected:
     bool mbAcceptKeyFrames;
     /// 和操作上面这个变量有关的互斥量
     std::mutex mMutexAccept;
+
+
+    /////
+    PointCloudMapping* mpPointCloudMapping;
 };
 
 } //namespace ORB_SLAM

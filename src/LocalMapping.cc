@@ -42,7 +42,7 @@ namespace ORB_SLAM2
 // 构造函数
 LocalMapping::LocalMapping(Map *pMap, const float bMonocular):
     mbMonocular(bMonocular), mbResetRequested(false), mbFinishRequested(false), mbFinished(true), mpMap(pMap),
-    mbAbortBA(false), mbStopped(false), mbStopRequested(false), mbNotStop(false), mbAcceptKeyFrames(true)
+    mbAbortBA(false), mbStopped(false), mbStopRequested(false), mbNotStop(false), mbAcceptKeyFrames(true),mpPointCloudMapping(nullptr)
 {
     /*
      * mbStopRequested：    外部线程调用，为true，表示外部线程请求停止 local mapping
@@ -54,6 +54,7 @@ LocalMapping::LocalMapping(Map *pMap, const float bMonocular):
      * mbResetRequested：   请求当前线程复位的标志。true，表示一直请求复位，但复位还未完成；表示复位完成为false
      * mbFinished：         判断最终LocalMapping::Run() 是否完成的标志。
      */
+    mpPointCloudMapping=nullptr;
 }
 
 // 设置回环检测线程句柄
@@ -127,6 +128,9 @@ void LocalMapping::Run()
             // Step 8 将当前帧加入到闭环检测队列中
             // 注意这里的关键帧被设置成为了bad的情况,这个需要注意
             mpLoopCloser->InsertKeyFrame(mpCurrentKeyFrame);
+#ifdef REAL_TIME_GENERATE
+            mpPointCloudMapping->insertKeyFrame(mpCurrentKeyFrame);
+#endif
         }
         else if(Stop())     // 当要终止当前线程的时候
         {
@@ -950,6 +954,8 @@ void LocalMapping::KeyFrameCulling()
         // Step 4：如果该关键帧90%以上的有效地图点被判断为冗余的，则认为该关键帧是冗余的，需要删除该关键帧
         if(nRedundantObservations>0.9*nMPs)
             pKF->SetBadFlag();
+
+        //mpPointCloudMapping->insertKeyFrame(mpCurrentKeyFrame);
     }
 }
 

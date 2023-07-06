@@ -54,6 +54,7 @@ LoopClosing::LoopClosing(Map *pMap, KeyFrameDatabase *pDB, ORBVocabulary *pVoc, 
 {
     // 连续性阈值
     mnCovisibilityConsistencyTh = 3;
+    mpPointCloudMapping = nullptr;
 }
 
 // 设置追踪线程句柄
@@ -92,6 +93,20 @@ void LoopClosing::Run()
                    CorrectLoop();
                }
             }
+            /*
+
+            {
+
+                std::vector<KeyFrame*> tmpVecKF =  mpMap->GetAllKeyFrames();
+                for(auto& kf : tmpVecKF)
+                {
+                    mpPointCloudMapping->insertKeyFrame(kf);
+                }
+                
+            }
+            */
+
+            
         }
 
         // 查看是否有外部线程请求复位当前线程

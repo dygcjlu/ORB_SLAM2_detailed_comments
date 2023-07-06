@@ -31,6 +31,8 @@
 #include<unistd.h>
 using namespace std;
 
+bool g_isCustom = true;
+
 /**
  * @brief 加载图像
  * @param[in]  strPathLeft          保存左目图像文件名称的文件的路径
@@ -46,12 +48,13 @@ void LoadImages(const string &strPathLeft, const string &strPathRight, const str
 int main(int argc, char **argv)
 {
     // step 0 参数检查
-    if(argc != 7)
+    if(argc != 8)
     {
-        cerr << endl << "Usage: ./stereo_euroc path_to_vocabulary path_to_settings path_to_left_folder path_to_right_folder path_to_times_file" << endl;
+        cerr << endl << "Usage: ./stereo_euroc path_to_vocabulary path_to_settings path_to_left_folder path_to_right_folder path_to_times_file path_to_save_path g_isCustom" << endl;
         return 1;
     }
     std::string strSavePath = argv[6];
+    g_isCustom = atoi(argv[7]) ? true : false;
 
     // step 1 获取图像的访问路径
     // Retrieve paths to images
@@ -216,14 +219,19 @@ int main(int argc, char **argv)
 
         // Wait to load the next frame
         // step 4.7 等待一段时间以符合下一帧图像的时间戳
-        double T=0;
-        if(ni<nImages-1)
-            T = vTimeStamp[ni+1]-tframe;
-        else if(ni>0)
-            T = tframe-vTimeStamp[ni-1];
+    
+        if(!g_isCustom)
+        {
+            double T=0;
+            if(ni<nImages-1)
+                T = vTimeStamp[ni+1]-tframe;
+            else if(ni>0)
+                T = tframe-vTimeStamp[ni-1];
 
-        if(ttrack<T)
-            usleep((T-ttrack)*1e6);
+            if(ttrack<T)
+                usleep((T-ttrack)*1e6);
+        }
+        
     }
 
     // step 5 追踪过程执行完毕，退出系统
@@ -249,7 +257,11 @@ int main(int argc, char **argv)
 
     SLAM.SaveKeyFrameTrajectoryTUM(strSavePath + "/KeyFrameTrajectory.txt");   
 
-    SLAM.SaveMap(strSavePath + "/sfm.txt",imLeft.size); 
+#ifndef REAL_TIME_GENERATE
+    //SLAM.SaveMap(strSavePath + "/sfm.txt",imLeft.size); 
+    SLAM.SaveMap(strSavePath, imLeft.size); 
+#endif
+
     cout << "Fall in sleep" << endl;
 
     sleep(5);
@@ -280,7 +292,15 @@ void LoadImages(const string &strPathLeft, const string &strPathRight, const str
             vstrImageRight.push_back(strPathRight + "/" + ss.str() + ".png");
             double t;
             ss >> t;
-            vTimeStamps.push_back(t/1e9);
+            if(!g_isCustom)
+            {
+                vTimeStamps.push_back(t/1e9);
+
+            }else{
+                vTimeStamps.push_back(t/1e6);
+
+            }
+            
 
         }
     }
