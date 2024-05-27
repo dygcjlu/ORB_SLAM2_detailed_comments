@@ -199,7 +199,7 @@ int Map::GeneratePointCloud()
             cv::FileStorage::READ);     // 以只读方式打开
     if(!fsSettings.isOpened())
     {
-        cerr << "ERROR: Wrong path to settings" << endl;
+        cerr << "ERROR: Wrong path to settings" <<strParamFile <<endl;
         return -1;
     }
     
@@ -264,6 +264,12 @@ void Map::Save(const string &strFilePath,const cv::MatSize image_size)
     f << nKeyFrames << endl;
     for(auto kf:mspKeyFrames)
     {
+        if(kf->isBad())
+        {
+            std::cout<<"mvs, bad key frame, id:"<<kf->mnId<<std::endl;
+            //continue;
+        }
+        
         SaveKeyFrame(f,kf);
         SaveKeyFrameImg(strFilePath, kf);
     }
@@ -316,9 +322,9 @@ void Map::SaveKeyFrame(ofstream &f, KeyFrame *kf)
     f << kf->fx << " " << kf->fy << " " << kf->cx << " " << kf->cy << " ";
     // 保存当前关键帧的位姿
     cv::Mat Tcw = kf->GetPose();
-    cout << "GetPose " << std::to_string(kf->mTimeStamp) <<"\nTcw\n" <<Tcw<< endl;
+    //cout << "GetPose " << std::to_string(kf->mTimeStamp) <<"\nTcw\n" <<Tcw<< endl;
     cv::Mat Rcw = Tcw.rowRange(0,3).colRange(0,3);
-    cout << "Rcw\n" << Rcw << endl;
+    //cout << "Rcw\n" << Rcw << endl;
     // 通过四元数保存旋转矩阵
     std::vector<float> Quat = Converter::toQuaternion(Rcw);
 
@@ -349,29 +355,84 @@ void Map::SaveKeyFrameImg(string strFilePath, KeyFrame *kf)
     //string img_root = "/media/xxd/Data2/datasets/3d/mine/0105/stereo/1/for_slam/mav0/cam0/data/";
     //string dst_root = "/media/xxd/Data2/datasets/3d/mine/0105/stereo/1/for_slam/keyframe/";
     std::string dst_root = strFilePath + "keyframe/";
+    std::string left_save_path = dst_root + "left/";
+    std::string right_save_path = dst_root + "right/";
+
+    if(access(dst_root.c_str(), F_OK) == -1)
+    {
+        if (mkdir(dst_root.c_str(), 0666) == -1)
+          cerr << "create failsed "<<dst_root<<",Error :  " << strerror(errno) << endl;
+        else
+          cout << "Directory created";
+    }
+
+    if(access(left_save_path.c_str(), F_OK) == -1)
+    {
+        if (mkdir(left_save_path.c_str(), 0666) == -1)
+          cerr << "create failsed "<<left_save_path<<",Error :  " << strerror(errno) << endl;
+        else
+          cout << "Directory created";
+    }
+
+    if(access(right_save_path.c_str(), F_OK) == -1)
+    {
+        if (mkdir(right_save_path.c_str(), 0666) == -1)
+          cerr << "create failsed "<<right_save_path<<",Error :  " << strerror(errno) << endl;
+        else
+          cout << "Directory created";
+    }
+     
+
     std::string img_root = strFilePath + "mav0/cam0/data/";
+    std::string right_img_root = strFilePath + "mav0/cam1/data/";
 
     //string strTime = std::to_string(kf->mTimeStamp*1e9);
-    string strTime = std::to_string(kf->mTimeStamp*1e6);
-    int pos = strTime.find('.');
-    if (pos == strTime.npos)
+    bool bFromLocal = false;
+    if(bFromLocal)
     {
-      cout << "not find . in "<< strTime<<endl;
-      return;
-    }
-    string strTimgSub = strTime.substr(0, pos);
+        string strTime = std::to_string(kf->mTimeStamp*1e6);
+        int pos = strTime.find('.');
+        if (pos == strTime.npos)
+        {
+            cout << "not find . in "<< strTime<<endl;
+            return;
+        }
+        string strTimgSub = strTime.substr(0, pos);
+        string img_name = img_root + strTimgSub + ".png";
+        cv::Mat left_img = cv::imread(img_name);
+        if(left_img.empty())
+        {
+            std::cout<<"img.empty()"<< img_name<<"time:"<< kf->mTimeStamp<<std::endl;
+            return;
+        }
 
-    string img_name = img_root + strTimgSub + ".png";
-    cv::Mat img = cv::imread(img_name);
-    if(img.empty())
+        string dst_name = left_save_path + std::to_string(kf->mTimeStamp) + ".png";
+        cv::imwrite(dst_name, left_img);
+
+        img_name = right_img_root + strTimgSub + ".png";
+        cv::Mat right_img = cv::imread(img_name);
+        if(right_img.empty())
+        {
+            std::cout<<"right_img.empty()"<< img_name<<"time:"<< kf->mTimeStamp<<std::endl;
+            return;
+        }
+
+        dst_name = right_save_path + std::to_string(kf->mTimeStamp) + ".png";
+        cv::imwrite(dst_name, right_img);
+
+    }else
     {
-        std::cout<<"img.empty()"<< img_name<<"time:"<< kf->mTimeStamp<<std::endl;
-        return;
+        if(kf->imLeftRgb.empty() || kf->imRightRgb.empty())
+        {
+            std::cout<<"image is empty"<<std::endl;
+            return;
+        }
+        string dst_name = left_save_path + std::to_string(kf->mTimeStamp) + ".png";
+        cv::imwrite(dst_name, kf->imLeftRgb);
+
+        dst_name = right_save_path + std::to_string(kf->mTimeStamp) + ".png";
+        cv::imwrite(dst_name, kf->imRightRgb);
     }
-
-    string dst_name = dst_root + std::to_string(kf->mTimeStamp) + ".png";
-
-    cv::imwrite(dst_name, img);
 
 }
 

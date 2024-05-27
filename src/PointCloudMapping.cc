@@ -406,12 +406,12 @@ namespace ORB_SLAM2
     }
 
     // 保存地图的函数，需要的自行调用~
-    void PointCloudMapping::save()
-    {
-        std::unique_lock<std::mutex> lck(mMutexGlobalMap);
-        pcl::io::savePCDFile("result.pcd", *globalMap);
-        cout << "globalMap save finished" << endl;
-    }
+   // void PointCloudMapping::save()
+   ////////////////////////////////////////////////// {
+    //    std::unique_lock<std::mutex> lck(mMutexGlobalMap);
+   //     pcl::io::savePCDFile("result.pcd", *globalMap);
+   //     cout << "globalMap save finished" << endl;
+   // }
     void PointCloudMapping::updatecloud(Map &curMap)
     {
         std::unique_lock<std::mutex> lck(updateMutex);

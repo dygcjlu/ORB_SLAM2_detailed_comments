@@ -82,4 +82,4 @@ private:
 }
 
 
-#endif STEREO_MATCH_H_
+#endif //STEREO_MATCH_H_

@@ -55,6 +55,7 @@ int main(int argc, char **argv)
     }
     std::string strSavePath = argv[6];
     g_isCustom = atoi(argv[7]) ? true : false;
+    std::cout<<"is custom data:"<<g_isCustom<<std::endl;
 
     // step 1 获取图像的访问路径
     // Retrieve paths to images
@@ -86,7 +87,7 @@ int main(int argc, char **argv)
             cv::FileStorage::READ);     // 以只读方式打开
     if(!fsSettings.isOpened())
     {
-        cerr << "ERROR: Wrong path to settings" << endl;
+        cerr << "ERROR: Wrong path to settings"<< argv[2]<< endl;
         return -1;
     }
 
@@ -152,7 +153,7 @@ int main(int argc, char **argv)
 
     cout << endl << "-------" << endl;
     cout << "Start processing sequence ..." << endl;
-    cout << "Images in the sequence: " << nImages << endl << endl;
+    cout << "Images in the sequence: " << nImages  << endl;
 
     // Main loop
     // step 4 对每一张输入的图像执行追踪
@@ -161,14 +162,15 @@ int main(int argc, char **argv)
     {
         // Read left and right images from file
         // step 4.1 读取原始图像
+        std::cout<<"process iamge:" <<vstrImageLeft[ni]<<std::endl;
         imLeft = cv::imread(vstrImageLeft[ni],CV_LOAD_IMAGE_UNCHANGED);
         imRight = cv::imread(vstrImageRight[ni],CV_LOAD_IMAGE_UNCHANGED);
 
         //合法性检查
         if(imLeft.empty())
         {
-            cerr << endl << "Failed to load image at: "
-                 << string(vstrImageLeft[ni]) << endl;
+            cout << "Failed to load image at: "
+                 << vstrImageLeft[ni] << endl;
             return 1;
         }
 
@@ -178,6 +180,11 @@ int main(int argc, char **argv)
                  << string(vstrImageRight[ni]) << endl;
             return 1;
         }
+
+        //去噪
+        cv::GaussianBlur(imLeft,   imLeft,  cv::Size(3, 3),  0,   0);//边缘拓展点插值类型
+        cv::GaussianBlur(imRight,   imRight,  cv::Size(3, 3),  0,   0);//边缘拓展点插值类型
+
 
         // step 4.2 对左右目图像进行双目矫正和去畸变处理
         //参考博客 [https://blog.csdn.net/sss_369/article/details/52983123]
@@ -201,6 +208,7 @@ int main(int argc, char **argv)
         std::chrono::monotonic_clock::time_point t1 = std::chrono::monotonic_clock::now();
 #endif
 
+        
         // Pass the images to the SLAM system
         // step 4.5 开始追踪
         SLAM.TrackStereo(imLeftRect,imRightRect,tframe);
@@ -289,6 +297,7 @@ void LoadImages(const string &strPathLeft, const string &strPathRight, const str
             stringstream ss;
             ss << s;
             vstrImageLeft.push_back(strPathLeft + "/" + ss.str() + ".png");
+           
             vstrImageRight.push_back(strPathRight + "/" + ss.str() + ".png");
             double t;
             ss >> t;
@@ -302,6 +311,10 @@ void LoadImages(const string &strPathLeft, const string &strPathRight, const str
             }
             
 
+        }
+        else
+        {
+            std::cout<<"this line is empty!"<<std::endl;
         }
     }
 }

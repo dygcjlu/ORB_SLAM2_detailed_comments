@@ -579,7 +579,11 @@ void System::SaveKeyFrameTrajectoryTUM(const string &filename)
 
         //如果这个关键帧是bad那么就跳过
         if(pKF->isBad())
+        {
+            std::cout<<"bad key frame, id:"<<pKF->mnId<<std::endl;
             continue;
+        }
+            
 
         //抽取旋转部分和平移部分，前者使用四元数表示
         cv::Mat R = pKF->GetRotation().t();

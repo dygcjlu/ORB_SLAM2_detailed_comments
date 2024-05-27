@@ -437,9 +437,9 @@ protected:
 
     public:
 
-#ifdef STEREO_MATCH
+//#ifdef STEREO_MATCH
      cv::Mat mimLeft, mimRight;
-#endif
+//#endif
 };  //class Tracking
 
 } //namespace ORB_SLAM

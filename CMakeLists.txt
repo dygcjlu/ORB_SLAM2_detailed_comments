@@ -7,7 +7,9 @@ IF(NOT CMAKE_BUILD_TYPE)
 ENDIF()
 
 MESSAGE("Build type: " ${CMAKE_BUILD_TYPE})
-add_definitions(-DSTEREO_MATCH)
+
+#DSTEREO_MATCH 则生成三维模型否则导出关键帧姿态数据
+#add_definitions(-DSTEREO_MATCH) 
 
 set(CUDA_ARCHS "86" CACHE STRING "List of architectures to generate device code for")
 find_package(CUDA REQUIRED)
@@ -52,6 +54,8 @@ endif()
 
 LIST(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake_modules)
 
+set(OpenCV_DIR /media/jason/Data2/opencv/opencv_3_4_5/build_release/install/share/OpenCV)
+
 find_package(OpenCV 3.0 QUIET)
 if(NOT OpenCV_FOUND)
    find_package(OpenCV 2.4.3 QUIET)
@@ -60,10 +64,14 @@ if(NOT OpenCV_FOUND)
    endif()
 endif()
 
-find_package(Eigen3 3.1.0 REQUIRED)
-#set(Pangolin_DIR /home/xxd/dyg/slam/slambook2/3rdparty/Pangolin/build/install/lib/cmake/Pangolin)
+#find_package(Eigen3 3.1.0 REQUIRED)
+find_package(Eigen3  REQUIRED)
+
+set(Pangolin_DIR /media/jason/Data2/3rd_party/Pangolin/build/install/lib/cmake/Pangolin)
 find_package(Pangolin REQUIRED)
-set(PCL_DIR /media/xxd/Data2/3rd_party/pcl/build_vtk7/install/share/pcl-1.12)
+
+set(VTK_DIR /media/jason/Data2/3d/VTK/build/install/lib/cmake/vtk-7.1)
+set(PCL_DIR /media/jason/Data2/3rd_party/pcl/build_vtk7/install/share/pcl-1.12)
 find_package(PCL 1.12 REQUIRED)
 
 include_directories(
